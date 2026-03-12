@@ -934,20 +934,17 @@ async function callClaude(files,apiKey){
   }
   contents.push({type:'text',text:`You are an expert sports memorabilia authenticator. These ${files.length} photos show a signed sports jersey lot.
 
-CRITICAL TASK - JERSEY NUMBER: Look at Image 0 (back of jersey) first. There is a LARGE number printed on the back of the jersey — it is the biggest text on the jersey. Read those digits carefully. This is the jersey number. Also check the front image for the number.
-
-Identify:
-- Player full name (from signature, COA text, and jersey nameplate)
-- Team full name (e.g. "Denver Nuggets" not just "Nuggets")  
-- Jersey NUMBER — the large digits on the back/front of the jersey fabric (NOT the year, NOT a serial number)
-- Primary jersey color (e.g. "White", "Gold", "Navy Blue")
-- Sport (NBA, NFL, MLB, NHL, etc.)
+CRITICAL TASK: Identify these 3 things from the jersey photos:
+1. PLAYER NAME — read from the COA, signature, and jersey nameplate
+2. JERSEY NUMBER — the LARGE digits on the back of the jersey fabric. This is the biggest number on the jersey. Read it carefully.
+3. TEAM NAME — full team name (e.g. "Denver Nuggets" not just "Nuggets")
 
 Return JSON only, no markdown:
-{"player":"Full Name","number":"##","team":"Full Team Name","sport":"NBA","color":"Primary Color","title":"Player Signed Team Color Jersey #Number w/COA","description":"Player Signed Team Color Jersey #Number w/COA","hasCOA":true,"indices":[back,sig,coa,front]}
+{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name #Number Full Team Name","description":"Full Name #Number Full Team Name","hasCOA":true,"indices":[back,sig,coa,front]}
 
 - indices: map to [back of jersey, signature photo, COA photo, front of jersey] using 0-${files.length-1}
-- number: MUST be the actual digits you see on the jersey (e.g. "15", "23", "7") — never use "?" or leave blank if visible`});
+- number: the actual digits on the jersey (e.g. "15", "23", "7") — never "?"
+- title/description example: "Michael Jordan #23 Chicago Bulls"`});
   let raw='';
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:contents}]})});
@@ -1240,46 +1237,46 @@ function renderLotsGrid(){
     div.innerHTML=`
       <div class="lot-num" style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--gold);line-height:1;text-align:center;padding-right:12px;border-right:1px solid var(--border);min-width:50px">${lot.lotNum}</div>
       <div style="flex:1;min-width:0">
-        <div class="lot-title-display" id="lt_${idx}">${lot.title}</div>
-        <div class="lot-desc-display" id="ld_${idx}">${lot.description}</div>
+        <div class="lot-title-display" id="lt_${lot.id}">${lot.title}</div>
+        <div class="lot-desc-display" id="ld_${lot.id}">${lot.description}</div>
         <div class="lot-meta"><span class="badge badge-gold">${lot.auctionName}</span><span class="badge badge-blue">${lot.toteLabel}</span>${cfBadge}</div>
 
-        <div id="photos_${idx}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0">
+        <div id="photos_${lot.id}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0">
           ${(lot.thumbUrls||[]).map((url,p)=>`
-            <div id="slot_${idx}_${p}" style="background:var(--bg4);border:2px dashed var(--border2);border-radius:8px;padding:5px;text-align:center;cursor:grab;transition:all 0.2s;position:relative"
+            <div id="slot_${lot.id}_${p}" style="background:var(--bg4);border:2px dashed var(--border2);border-radius:8px;padding:5px;text-align:center;cursor:grab;transition:all 0.2s;position:relative"
               draggable="true"
-              ondragstart="photoDragStart(event,${idx},${p})"
+              ondragstart="photoDragStart(event,'${lot.id}',${p})"
               ondragover="photoDragOver(event)"
               ondragleave="photoDragLeave(event)"
-              ondrop="photoDrop(event,${idx},${p})">
+              ondrop="photoDrop(event,'${lot.id}',${p})">
               ${url?`<img src="${url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:5px;display:block;pointer-events:none" />`:'<div style="width:100%;aspect-ratio:1;background:var(--bg3);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>'}
               <div style="font-size:10px;color:var(--gold);font-weight:600;margin-top:3px">${lot.lotNum}-${p+1}</div>
               <div style="font-size:9px;color:var(--muted)">${lot.photoLabels[p]}</div>
               <div style="display:flex;justify-content:center;gap:3px;margin-top:3px">
-                <button onclick="rotatePhoto(${idx},${p},-90)" title="Rotate Left" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--muted2);cursor:pointer;padding:2px 5px;font-size:11px">↺</button>
-                <button onclick="rotatePhoto(${idx},${p},90)" title="Rotate Right" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--muted2);cursor:pointer;padding:2px 5px;font-size:11px">↻</button>
-                <button onclick="deletePhoto(${idx},${p})" title="Delete Photo" style="background:rgba(224,82,82,0.15);border:1px solid rgba(224,82,82,0.3);border-radius:4px;color:var(--red);cursor:pointer;padding:2px 5px;font-size:11px">🗑</button>
+                <button onclick="rotatePhoto('${lot.id}',${p},-90)" title="Rotate Left" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--muted2);cursor:pointer;padding:2px 5px;font-size:11px">↺</button>
+                <button onclick="rotatePhoto('${lot.id}',${p},90)" title="Rotate Right" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--muted2);cursor:pointer;padding:2px 5px;font-size:11px">↻</button>
+                <button onclick="deletePhoto('${lot.id}',${p})" title="Delete Photo" style="background:rgba(224,82,82,0.15);border:1px solid rgba(224,82,82,0.3);border-radius:4px;color:var(--red);cursor:pointer;padding:2px 5px;font-size:11px">🗑</button>
               </div>
             </div>`).join('')}
         </div>
         <p style="font-size:10px;color:var(--muted);margin-bottom:8px">⠿ Drag photos to reorder · ↺↻ to rotate</p>
 
-        <div class="edit-form" id="ef_${idx}">
+        <div class="edit-form" id="ef_${lot.id}">
           <div class="edit-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div class="field"><label class="field-label">Player</label><input type="text" id="ep_${idx}" value="${lot.player||''}"/></div>
-            <div class="field"><label class="field-label">Team</label><input type="text" id="et_${idx}" value="${lot.team||''}"/></div>
+            <div class="field"><label class="field-label">Player</label><input type="text" id="ep_${lot.id}" value="${lot.player||''}"/></div>
+            <div class="field"><label class="field-label">Team</label><input type="text" id="et_${lot.id}" value="${lot.team||''}"/></div>
           </div>
-          <div class="field"><label class="field-label">Title</label><input type="text" id="etitle_${idx}" value="${lot.title||''}"/></div>
-          <div class="field"><label class="field-label">Description</label><input type="text" id="edesc_${idx}" value="${lot.description||''}"/></div>
+          <div class="field"><label class="field-label">Title</label><input type="text" id="etitle_${lot.id}" value="${lot.title||''}"/></div>
+          <div class="field"><label class="field-label">Description</label><input type="text" id="edesc_${lot.id}" value="${lot.description||''}"/></div>
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn btn-green btn-sm" onclick="saveLotEdit(${idx})">✓ Save</button>
-            <button class="btn btn-ghost btn-sm" onclick="toggleEdit(${idx})">Cancel</button>
+            <button class="btn btn-green btn-sm" onclick="saveLotEdit('${lot.id}')">✓ Save</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${lot.id}')">Cancel</button>
           </div>
         </div>
       </div>
       <div class="lot-actions" style="display:flex;flex-direction:column;gap:5px">
-        <button class="btn btn-ghost btn-sm" onclick="toggleEdit(${idx})">✏️ Edit</button>
-        <button class="btn btn-red btn-sm" onclick="deleteLot(${idx})">🗑️ Delete</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${lot.id}')">✏️ Edit</button>
+        <button class="btn btn-red btn-sm" onclick="deleteLot('${lot.id}')">🗑️ Delete</button>
       </div>`;
     grid.appendChild(div);
   });
@@ -2144,7 +2141,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.2.2
+  AUCTION MANAGER PRO · V1.2.5
 </div>
 </body>
 </html>
