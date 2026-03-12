@@ -349,6 +349,8 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
         <button class="btn btn-green btn-full" id="dl-zip-btn">📦 Download Photos ZIP</button>
         <button class="btn btn-blue btn-full" id="dl-csv-btn">📊 Download CSV</button>
       </div>
+      <button class="btn btn-gold btn-full" id="save-drive-btn" style="margin-top:8px;display:none">☁️ Save Photos to Google Drive</button>
+      <div id="drive-status" style="font-size:12px;color:var(--muted2);margin-top:6px;text-align:center"></div>
 
     </div>
   </div>
@@ -639,6 +641,7 @@ function handleCredential(response){
 }
 
 function showApp(skipNotify){
+  updateDriveBtn();
     document.getElementById('main-header').style.display='flex';
   document.getElementById('main-tabs').style.display='flex';
   document.getElementById('main-content').style.display='block';
@@ -1065,23 +1068,15 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
 
     renderLotsGrid();
     document.getElementById('results-section').style.display='block';
+    updateDriveBtn();
     updateLastLotHint();setStep(4);
     notify(`✅ ${processedLots.length} lots ready!`);
     // refresh auctions tab in background
     setTimeout(()=>{ if(document.getElementById('tab-auctions').classList.contains('active')) renderAuctions(); }, 500);
 
-    // Auto-upload photos to Google Drive tote folder if signed in
+    // Remind user to review before saving to Drive
     if(accessToken) {
-      plog(`☁️ Uploading photos to Google Drive (${auctionName} / ${toteLabel})...`);
-      try {
-        const { uploaded } = await uploadPhotosToToteFolder(processedLots, auctionName, toteLabel);
-        plog(`✅ ${uploaded} photos uploaded to Drive: Auction Manager Pro / ${auctionName} / ${toteLabel}`,'ok');
-        notify(`☁️ ${uploaded} photos saved to Google Drive!`);
-      } catch(e) {
-        plog(`⚠ Drive upload failed: ${e.message} — use Download ZIP instead`,'warn');
-      }
-    } else {
-      plog('💡 Sign in with Google to auto-save photos to Drive','warn');
+      plog('💡 Review and edit your lots below, then tap Save to Drive when ready','ok');
     }
   }catch(e){
     plog(`❌ ${e.message}`,'err');setProgress(0,'Error');notify('Failed: '+e.message,true);
@@ -1089,71 +1084,74 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
   document.getElementById('process-btn').disabled=false;
 });
 
-async function uploadZipToDrive(blob, fileName, auctionName) {
-  // Find or create auction folder in Drive
-  const folderName = `Auction Manager - ${auctionName}`;
-  
-  // Search for existing folder
-  const searchRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=name%3D'${encodeURIComponent(folderName)}'+and+mimeType%3D'application%2Fvnd.google-apps.folder'+and+trashed%3Dfalse&fields=files(id,name)`,
+async function findOrCreateFolder(name, parentId=null) {
+  const parentQ = parentId ? `+and+'${parentId}'+in+parents` : '';
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name%3D'${encodeURIComponent(name)}'+and+mimeType%3D'application%2Fvnd.google-apps.folder'+and+trashed%3Dfalse${parentQ}&fields=files(id,name)`,
     { headers: { 'Authorization': 'Bearer ' + accessToken } }
   );
-  const searchData = await searchRes.json();
-  
-  let folderId;
-  if(searchData.files && searchData.files.length > 0) {
-    folderId = searchData.files[0].id;
-  } else {
-    // Create folder
-    const folderRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
-    });
-    const folderData = await folderRes.json();
-    folderId = folderData.id;
-  }
+  const data = await res.json();
+  if(data.files && data.files.length > 0) return data.files[0].id;
+  const body = { name, mimeType: 'application/vnd.google-apps.folder' };
+  if(parentId) body.parents = [parentId];
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return (await createRes.json()).id;
+}
 
-  // Upload ZIP using multipart upload
+async function uploadFileToDrive(blob, fileName, mimeType, folderId) {
   const metadata = { name: fileName, parents: [folderId] };
-  const boundary = 'auction_manager_boundary';
-  const metaPart = `--${boundary}
+  const boundary = 'amp_boundary';
+  const metaBytes = new TextEncoder().encode(`--${boundary}
 Content-Type: application/json
 
 ${JSON.stringify(metadata)}
-`;
-  const filePart = `--${boundary}
-Content-Type: application/zip
+`);
+  const filePartBytes = new TextEncoder().encode(`--${boundary}
+Content-Type: ${mimeType}
 
-`;
-  const endPart = `
---${boundary}--`;
-
-  const metaBytes = new TextEncoder().encode(metaPart);
+`);
   const fileBytes = new Uint8Array(await blob.arrayBuffer());
-  const filePartBytes = new TextEncoder().encode(filePart);
-  const endBytes = new TextEncoder().encode(endPart);
-
+  const endBytes = new TextEncoder().encode(`
+--${boundary}--`);
   const combined = new Uint8Array(metaBytes.length + filePartBytes.length + fileBytes.length + endBytes.length);
   combined.set(metaBytes, 0);
   combined.set(filePartBytes, metaBytes.length);
   combined.set(fileBytes, metaBytes.length + filePartBytes.length);
   combined.set(endBytes, metaBytes.length + filePartBytes.length + fileBytes.length);
-
-  const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
     method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + accessToken,
-      'Content-Type': `multipart/related; boundary=${boundary}`
-    },
+    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': `multipart/related; boundary=${boundary}` },
     body: combined
   });
-  if(!uploadRes.ok) {
-    const err = await uploadRes.json();
-    throw new Error(err.error?.message || `HTTP ${uploadRes.status}`);
-  }
-  return await uploadRes.json();
+  if(!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
+  return await res.json();
 }
+
+async function uploadPhotosToToteFolder(processedLots, auctionName, toteLabel) {
+  // Structure: Auction Manager Pro / [Auction Name] / [Tote Label] /
+  // Both phones processing same tote merge photos into same folder
+  const rootId = await findOrCreateFolder('Auction Manager Pro');
+  const auctionId = await findOrCreateFolder(auctionName, rootId);
+  const toteFolderId = await findOrCreateFolder(toteLabel, auctionId);
+  let uploaded = 0;
+  for(const lot of processedLots) {
+    for(let p = 0; p < 4; p++) {
+      const url = lot.thumbUrls[p];
+      if(!url) continue;
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const label = ['Back','Sig','COA','Front'][p];
+      await uploadFileToDrive(blob, `${lot.lotNum}-${p+1}_${label}.jpg`, 'image/jpeg', toteFolderId);
+      uploaded++;
+    }
+  }
+  return { uploaded, toteFolderId };
+}
+
 
 function getLotIdx(lotId) {
   return processedLots.findIndex(l => l.id === lotId);
@@ -1400,6 +1398,50 @@ function saveLotEdit(idx){
   processedLots.forEach(l=>rows.push([l.lotNum,l.title,l.description,1]));
   currentCsv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
 }
+
+// Show Save to Drive button if signed in
+function updateDriveBtn() {
+  const btn = document.getElementById('save-drive-btn');
+  if(btn) btn.style.display = accessToken ? 'block' : 'none';
+}
+
+document.getElementById('save-drive-btn').addEventListener('click', async () => {
+  if(!processedLots.length) { notify('No lots to save', true); return; }
+  const btn = document.getElementById('save-drive-btn');
+  const status = document.getElementById('drive-status');
+  const auctionName = document.getElementById('auction-name').value.trim();
+  const toteLabel = document.getElementById('tote-label').value.trim();
+  btn.disabled = true;
+  btn.textContent = '⏳ Uploading...';
+  status.textContent = '';
+  try {
+    let uploaded = 0;
+    const total = processedLots.reduce((n, l) => n + l.thumbUrls.filter(Boolean).length, 0);
+    for(const lot of processedLots) {
+      for(let p = 0; p < 4; p++) {
+        const url = lot.thumbUrls[p];
+        if(!url) continue;
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const label = ['Back','Sig','COA','Front'][p];
+        const rootId = await findOrCreateFolder('Auction Manager Pro');
+        const auctionId = await findOrCreateFolder(auctionName, rootId);
+        const toteFolderId = await findOrCreateFolder(toteLabel, auctionId);
+        await uploadFileToDrive(blob, `${lot.lotNum}-${p+1}_${label}.jpg`, 'image/jpeg', toteFolderId);
+        uploaded++;
+        btn.textContent = `⏳ Uploading ${uploaded}/${total}...`;
+      }
+    }
+    btn.textContent = '✅ Saved to Drive!';
+    btn.style.background = 'var(--green)';
+    status.textContent = `📁 Auction Manager Pro / ${auctionName} / ${toteLabel}`;
+    notify(`☁️ ${uploaded} photos saved to Google Drive!`);
+  } catch(e) {
+    btn.textContent = '☁️ Save Photos to Google Drive';
+    btn.disabled = false;
+    notify('Drive upload failed: ' + e.message, true);
+  }
+});
 
 document.getElementById('dl-zip-btn').addEventListener('click',()=>{
   if(!currentZip?._built)return;
@@ -2061,7 +2103,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.7
+  AUCTION MANAGER PRO · V1.1.9
 </div>
 </body>
 </html>
