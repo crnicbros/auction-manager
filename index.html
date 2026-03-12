@@ -500,6 +500,7 @@ let processedLots=[];
 let processingAborted=false;
 let currentZip=null;
 let currentCsv='';
+let storedZips={}; // toteKey -> built zip blob
 let unsoldLots=[];
 
 // Restore API key
@@ -1274,6 +1275,7 @@ Return JSON only, no markdown:
     setProgress(90,'Building ZIP...');
     currentZip=zip;
     currentZip._built=await zip.generateAsync({type:'blob'});
+    storedZips[toteKey] = currentZip._built; // keep for Auctions tab
 
     const rows=[['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
     processedLots.forEach(l=>rows.push([l.lotNum,l.title,l.description,1]));
@@ -1818,44 +1820,59 @@ function renderHistory(){
 // ============================================================
 function renderAuctions() {
   const el = document.getElementById('auctions-content');
-  const auctions = [...new Set(state.totes.map(t=>t.auctionName))];
+  // Build from both totes AND lots so auctions show even if totes tab is empty
+  const auctionNames = [...new Set([
+    ...state.totes.map(t=>t.auctionName),
+    ...state.lots.map(l=>l.auctionName)
+  ])].filter(Boolean);
 
-  if(!auctions.length) {
+  if(!auctionNames.length) {
     el.innerHTML='<div class="empty"><span class="empty-icon">🏆</span><p>No auctions yet. Go to Processor to add your first tote.</p></div>';
     return;
   }
 
-  el.innerHTML = auctions.map(auction => {
+  el.innerHTML = auctionNames.map(auction => {
     const totes = state.totes.filter(t=>t.auctionName===auction);
-    const lots = state.lots.filter(l=>l.auctionName===auction);
+    const lots = state.lots.filter(l=>l.auctionName===auction).sort((a,b)=>a.lotNum-b.lotNum);
     const totalLots = lots.length;
+    const minLot = totalLots ? Math.min(...lots.map(l=>l.lotNum)) : '—';
+    const maxLot = totalLots ? Math.max(...lots.map(l=>l.lotNum)) : '—';
     const soldLots = lots.filter(l=>l.soldStatus==='sold').length;
-    const unsoldLots = lots.filter(l=>l.soldStatus==='unsold').length;
-    const pendingLots = totalLots - soldLots - unsoldLots;
+    const unsoldCount = lots.filter(l=>l.soldStatus==='unsold').length;
+    const pendingLots = totalLots - soldLots - unsoldCount;
 
     return `
     <div class="auction-card">
       <div class="auction-card-header">
         <div>
           <div class="auction-card-title">${auction}</div>
-          <div class="auction-card-meta">${totes.length} tote${totes.length!==1?'s':''} · ${totalLots} lots total</div>
+          <div class="auction-card-meta">${totes.length} tote${totes.length!==1?'s':''} · Lots ${minLot}–${maxLot}</div>
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
           <div class="auction-stats">
-            <div class="auction-stat"><div class="num">${totalLots}</div><div class="lbl">Total</div></div>
+            <div class="auction-stat"><div class="num">${totalLots}</div><div class="lbl">Total Lots</div></div>
             <div class="auction-stat"><div class="num" style="color:var(--green)">${soldLots}</div><div class="lbl">Sold</div></div>
-            <div class="auction-stat"><div class="num" style="color:var(--red)">${unsoldLots}</div><div class="lbl">Unsold</div></div>
+            <div class="auction-stat"><div class="num" style="color:var(--red)">${unsoldCount}</div><div class="lbl">Unsold</div></div>
             <div class="auction-stat"><div class="num" style="color:var(--muted2)">${pendingLots}</div><div class="lbl">Pending</div></div>
           </div>
           <button class="btn btn-red btn-sm" onclick="deleteAuction('${auction}')">🗑️ Delete</button>
         </div>
       </div>
       <div class="auction-card-body">
-        <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Totes</div>
-        ${totes.map(t => {
-          const toteLots = lots.filter(l=>l.toteLabel===t.toteLabel);
-          const min = Math.min(...t.lotNums);
-          const max = Math.max(...t.lotNums);
+
+        <!-- SPREADSHEET EXPORT -->
+        <div class="auction-sheet-bar" style="margin-bottom:12px">
+          <div class="auction-sheet-label">📊 Spreadsheet · ${totalLots} lots</div>
+          <button class="btn btn-green btn-sm" onclick="copyAuctionSheet('${auction}')">📋 Copy</button>
+          <button class="btn btn-blue btn-sm" onclick="downloadAuctionCsv('${auction}')">⬇️ CSV</button>
+        </div>
+
+        <!-- TOTES -->
+        <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Totes & Photo ZIPs</div>
+        ${totes.length ? totes.map(t => {
+          const min = t.lotNums.length ? Math.min(...t.lotNums) : '—';
+          const max = t.lotNums.length ? Math.max(...t.lotNums) : '—';
+          const hasZip = !!storedZips[t.toteKey];
           return `
           <div class="tote-row">
             <div class="tote-row-info">
@@ -1863,15 +1880,13 @@ function renderAuctions() {
               <div class="tote-row-meta">Lots ${min}–${max} · ${t.lotNums.length} lots · ${t.date}</div>
             </div>
             <div class="tote-row-actions">
-              <button class="btn btn-ghost btn-sm" onclick="downloadToteZip('${auction}','${t.toteLabel}','${t.toteKey}')">📦 ZIP</button>
+              <button class="btn btn-sm ${hasZip?'btn-green':'btn-ghost'}" onclick="downloadToteZip('${auction}','${t.toteLabel}','${t.toteKey}')">${hasZip?'📦 Download ZIP':'📦 ZIP'}</button>
             </div>
           </div>`;
-        }).join('')}
+        }).join('') : '<div style="font-size:12px;color:var(--muted);padding:8px 0">No totes recorded — lots were saved directly.</div>'}
 
-        <div class="auction-sheet-bar">
-          <div class="auction-sheet-label">📊 Spreadsheet — ${totalLots} lots</div>
-          <button class="btn btn-green btn-sm" onclick="copyAuctionSheet('${auction}')">📋 Copy to Clipboard</button>
-          <button class="btn btn-blue btn-sm" onclick="downloadAuctionCsv('${auction}')">⬇️ Download CSV</button>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;padding:8px;background:var(--bg3);border-radius:6px">
+          💡 Photo ZIPs are available immediately after processing each tote. Process a tote to get its ZIP.
         </div>
       </div>
     </div>`;
@@ -1889,22 +1904,16 @@ function deleteAuction(auctionName) {
 }
 
 async function downloadToteZip(auctionName, toteLabel, toteKey) {
-  // Build zip from stored thumb URLs for this tote
-  const lots = state.lots.filter(l=>l.toteKey===toteKey).sort((a,b)=>a.lotNum-b.lotNum);
-  if(!lots.length) { notify('No lots found for this tote.', true); return; }
-
-  // Check if this is the currently processed tote (has live blob URLs)
-  const currentToteKey = `${document.getElementById('auction-name').value.trim()}__${document.getElementById('tote-label').value.trim()}`;
-  if(toteKey === currentToteKey && currentZip && currentZip._built) {
+  // Check storedZips first (available this session)
+  if(storedZips[toteKey]) {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(currentZip._built);
+    a.href = URL.createObjectURL(storedZips[toteKey]);
     a.download = `${auctionName}_${toteLabel}_photos.zip`;
     a.click();
-    notify('ZIP downloaded!');
+    notify('📦 ZIP downloaded!');
     return;
   }
-
-  notify('Photos are only available to download right after processing. Process this tote again to get the ZIP.', true);
+  notify('Photo ZIP for this tote is not available. Process this tote to generate a ZIP.', true);
 }
 
 function copyAuctionSheet(auctionName) {
@@ -2323,7 +2332,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.3.4
+  AUCTION MANAGER PRO · V1.3.5
 </div>
 </body>
 </html>
