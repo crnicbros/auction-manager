@@ -592,6 +592,7 @@ window.addEventListener('DOMContentLoaded', function handleOAuthRedirect() {
 
   accessToken = token;
   localStorage.setItem('g_access_token', token);
+  localStorage.setItem('g_token_expiry', Date.now() + 55 * 60 * 1000);
   history.replaceState(null, '', window.location.pathname);
 
   fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -601,6 +602,7 @@ window.addEventListener('DOMContentLoaded', function handleOAuthRedirect() {
     userInfo = { name: fullName, email: info.email };
     localStorage.setItem('g_user', JSON.stringify(userInfo));
     showApp(true);
+    scheduleTokenRefresh();
     notify('✅ Signed in as ' + (info.email || fullName));
   }).catch(e => notify('Sign in error: ' + e.message, true));
 });
@@ -612,6 +614,7 @@ window.onload = () => {
   if(savedToken && savedUser) {
     accessToken = savedToken;
     userInfo = JSON.parse(savedUser);
+    scheduleTokenRefresh();
     const displayName = userInfo.name || userInfo.email || 'Signed In';
     (document.getElementById('user-name')||{textContent:''}).textContent = displayName;
     (document.getElementById('user-avatar')||{textContent:''}).textContent = displayName[0].toUpperCase();
@@ -692,6 +695,70 @@ function signOut(){
 }
 
 // ============================================================
+// TOKEN AUTO-REFRESH
+// ============================================================
+function scheduleTokenRefresh() {
+  const expiry = parseInt(localStorage.getItem('g_token_expiry') || '0');
+  const now = Date.now();
+  const timeUntilRefresh = expiry - now - 2 * 60 * 1000; // refresh 2 min before expiry
+  if(timeUntilRefresh <= 0) {
+    // Already expired or about to — refresh now
+    silentTokenRefresh();
+  } else {
+    setTimeout(silentTokenRefresh, timeUntilRefresh);
+  }
+}
+
+function silentTokenRefresh() {
+  if(!userInfo) return; // not signed in
+  // Use redirect-based refresh — send to Google and come back silently
+  // Use prompt=none for silent refresh (works if user has active Google session)
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: window.location.origin + window.location.pathname,
+    response_type: 'token',
+    scope: SCOPES,
+    state: 'refresh',
+    prompt: 'none'
+  });
+  // Do silent refresh via hidden iframe instead of redirect
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+  document.body.appendChild(iframe);
+  // Listen for message back (won't work cross-origin, so fallback to redirect on API error)
+  setTimeout(() => {
+    document.body.removeChild(iframe);
+    scheduleTokenRefresh(); // reschedule check
+  }, 10000);
+}
+
+// Call any Google API — if 401, trigger re-auth redirect
+async function gapiWithRefresh(method, url, body) {
+  if(!accessToken) throw new Error('Not signed in to Google');
+  const opts = {method, headers: {'Authorization':'Bearer '+accessToken, 'Content-Type':'application/json'}};
+  if(body) opts.body = JSON.stringify(body);
+  let r = await fetch(url, opts);
+  if(r.status === 401) {
+    // Token expired — redirect to re-auth
+    notify('Google session expired — signing in again...', false);
+    setTimeout(() => {
+      const params = new URLSearchParams({
+        client_id: CLIENT_ID,
+        redirect_uri: window.location.origin + window.location.pathname,
+        response_type: 'token',
+        scope: SCOPES,
+        state: 'signin'
+      });
+      window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+    }, 1500);
+    throw new Error('Token expired — refreshing...');
+  }
+  if(!r.ok) { const e = await r.json(); throw new Error(e.error?.message || 'Google API error'); }
+  return r.json();
+}
+
+// ============================================================
 // GOOGLE SHEETS — MASTER DATABASE
 // ============================================================
 const MASTER_SHEET_NAME = 'Auction Manager Pro Data';
@@ -706,6 +773,20 @@ async function gapi(method, url, body) {
   const opts = {method, headers: {'Authorization':'Bearer '+accessToken, 'Content-Type':'application/json'}};
   if(body) opts.body = JSON.stringify(body);
   const r = await fetch(url, opts);
+  if(r.status === 401) {
+    notify('Google session expired — signing in again...');
+    setTimeout(() => {
+      const params = new URLSearchParams({
+        client_id: CLIENT_ID,
+        redirect_uri: window.location.origin + window.location.pathname,
+        response_type: 'token',
+        scope: SCOPES,
+        state: 'signin'
+      });
+      window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+    }, 1500);
+    throw new Error('Token expired — redirecting to sign in...');
+  }
   if(!r.ok) { const e = await r.json(); throw new Error(e.error?.message || 'Google API error'); }
   return r.json();
 }
@@ -2242,7 +2323,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.3.2
+  AUCTION MANAGER PRO · V1.3.3
 </div>
 </body>
 </html>
