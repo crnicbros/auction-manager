@@ -1321,8 +1321,8 @@ async function uploadPhotosToToteFolder(processedLots, auctionName, toteLabel) {
       if(!url) continue;
       const resp = await fetch(url);
       const blob = await resp.blob();
-      const label = ['Back','Sig','COA','Front'][p];
-      await uploadFileToDrive(blob, `${lot.lotNum}-${p+1}_${label}.jpg`, 'image/jpeg', toteFolderId);
+      // label unused
+      await uploadFileToDrive(blob, `${lot.lotNum}-${p+1}.jpg`, 'image/jpeg', toteFolderId);
       uploaded++;
     }
   }
@@ -1644,7 +1644,6 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
   const status = document.getElementById('drive-status');
   const auctionName = document.getElementById('auction-name').value.trim();
   const toteLabel = document.getElementById('tote-label').value.trim();
-  btn.disabled = true;
   btn.textContent = '⏳ Uploading...';
   status.textContent = '';
   try {
@@ -1660,13 +1659,13 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
         const rootId = await findOrCreateFolder('Auction Manager Pro');
         const auctionId = await findOrCreateFolder(auctionName, rootId);
         const toteFolderId = await findOrCreateFolder(toteLabel, auctionId);
-        await uploadFileToDrive(blob, `${lot.lotNum}-${p+1}_${label}.jpg`, 'image/jpeg', toteFolderId);
+        await uploadFileToDrive(blob, `${lot.lotNum}-${p+1}.jpg`, 'image/jpeg', toteFolderId);
         uploaded++;
         btn.textContent = `⏳ Uploading ${uploaded}/${total}...`;
       }
     }
-    btn.textContent = '✅ Saved to Drive!';
-    btn.style.background = 'var(--green)';
+    btn.textContent = '☁️ Save Photos to Google Drive';
+
     status.textContent = `📁 Auction Manager Pro / ${auctionName} / ${toteLabel}`;
     notify(`☁️ ${uploaded} photos saved to Google Drive!`);
   } catch(e) {
@@ -2343,7 +2342,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.3.9
+  AUCTION MANAGER PRO · V1.4.0
 </div>
 </body>
 </html>
