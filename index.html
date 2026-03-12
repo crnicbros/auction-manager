@@ -922,7 +922,26 @@ function readOrientation(file){return new Promise(resolve=>{const r=new FileRead
 function fixOrientation(img,ori){const c=document.createElement('canvas');const ctx=c.getContext('2d');const w=img.naturalWidth,h=img.naturalHeight;if([5,6,7,8].includes(ori)){c.width=h;c.height=w;}else{c.width=w;c.height=h;}switch(ori){case 2:ctx.transform(-1,0,0,1,w,0);break;case 3:ctx.transform(-1,0,0,-1,w,h);break;case 4:ctx.transform(1,0,0,-1,0,h);break;case 5:ctx.transform(0,1,1,0,0,0);break;case 6:ctx.transform(0,1,-1,0,h,0);break;case 7:ctx.transform(0,-1,-1,0,h,w);break;case 8:ctx.transform(0,-1,1,0,0,w);break;}ctx.drawImage(img,0,0);return c;}
 function fileToBase64(file,maxSize=1600){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;if(w>maxSize||h>maxSize){if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}else{w=Math.round(w*maxSize/h);h=maxSize;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.92).split(',')[1]);};img.onerror=rej;img.src=url;});}
 function loadImg(file){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=url;});}
-async function correctBlob(file){const ori=await readOrientation(file);if(ori===1)return file;const img=await loadImg(file);const canvas=fixOrientation(img,ori);URL.revokeObjectURL(img.src);return new Promise(res=>canvas.toBlob(res,'image/jpeg',0.92));}
+async function correctBlob(file){
+  const ori = await readOrientation(file);
+  const img = await loadImg(file);
+  const oriented = (ori && ori !== 1) ? fixOrientation(img, ori) : null;
+  URL.revokeObjectURL(img.src);
+  const src = oriented || img;
+  // Always output 1600x1200 (landscape)
+  const TARGET_W = 1600, TARGET_H = 1200;
+  const canvas = document.createElement('canvas');
+  canvas.width = TARGET_W; canvas.height = TARGET_H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, TARGET_W, TARGET_H);
+  // Scale to fit within 1600x1200, centered
+  const scale = Math.min(TARGET_W / src.width, TARGET_H / src.height);
+  const sw = src.width * scale, sh = src.height * scale;
+  const ox = (TARGET_W - sw) / 2, oy = (TARGET_H - sh) / 2;
+  ctx.drawImage(src, ox, oy, sw, sh);
+  return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+}
 
 async function callClaude(files,apiKey){
   const contents=[];
@@ -940,11 +959,11 @@ CRITICAL TASK: Identify these 3 things from the jersey photos:
 3. TEAM NAME — full team name (e.g. "Denver Nuggets" not just "Nuggets")
 
 Return JSON only, no markdown:
-{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name #Number Full Team Name","description":"Full Name #Number Full Team Name","hasCOA":true,"indices":[back,sig,coa,front]}
+{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name Signed Jersey #Number Full Team Name w/COA","description":"Full Name Signed Jersey #Number Full Team Name w/COA","hasCOA":true,"indices":[back,sig,coa,front]}
 
 - indices: map to [back of jersey, signature photo, COA photo, front of jersey] using 0-${files.length-1}
 - number: the actual digits on the jersey (e.g. "15", "23", "7") — never "?"
-- title/description example: "Michael Jordan #23 Chicago Bulls"`});
+- title/description example: "Michael Jordan Signed Jersey #23 Chicago Bulls w/COA"`});
   let raw='';
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:contents}]})});
@@ -993,57 +1012,123 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
   try{
     const totalLots=Math.floor(allFiles.length/4);
 
-    // Process ALL photos first — no lot numbers yet
-    plog(`🔍 Analyzing ${totalLots} lot${totalLots!==1?'s':''} with AI...`);
-    const analyzedLots=[];
+    // ---- BUILD BATCH REQUESTS ----
+    plog(`📦 Preparing ${totalLots} jerseys for batch processing...`);
+    setProgress(5, 'Preparing images...');
+
+    const JERSEY_PROMPT = `You are an expert sports memorabilia authenticator. These photos show a signed sports jersey lot.
+
+CRITICAL TASK: Identify these 3 things from the jersey photos:
+1. PLAYER NAME — read from the COA, signature, and jersey nameplate
+2. JERSEY NUMBER — the LARGE digits on the back of the jersey fabric. This is the biggest number on the jersey. Read it carefully.
+3. TEAM NAME — full team name (e.g. "Denver Nuggets" not just "Nuggets")
+
+Return JSON only, no markdown:
+{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name Signed Jersey #Number Full Team Name w/COA","description":"Full Name Signed Jersey #Number Full Team Name w/COA","hasCOA":true,"indices":[back,sig,coa,front]}
+
+- indices: map to [back of jersey, signature photo, COA photo, front of jersey] using 0-3
+- number: the actual digits on the jersey (e.g. "15", "23", "7") — never "?"
+- title/description example: "Michael Jordan Signed Jersey #23 Chicago Bulls w/COA"`;
+
+    const batchRequests = [];
     for(let i=0;i<totalLots;i++){
-      const batchFiles=allFiles.slice(i*4,i*4+4);
-      setProgress(Math.round((i/totalLots)*70),`Analyzing jersey ${i+1} of ${totalLots}...`);
-      plog(`🔍 Jersey ${i+1}/${totalLots}: analyzing...`);
-
-      let lotData;
-      // Retry loop — keeps trying forever until success or user stops
-      let attempt = 0;
-      while(true) {
-        if(processingAborted) break;
-        try {
-          if(attempt === 0) {
-            lotData = await callClaude(batchFiles, apiKey);
-          } else {
-            // Simpler fallback prompt with smaller images
-            plog(`🔄 Jersey ${i+1} attempt ${attempt+1}...`, 'warn');
-            const retryContents = [];
-            for(let ri=0;ri<batchFiles.length;ri++){
-              const b64=await fileToBase64(batchFiles[ri], 800);
-              retryContents.push({type:'image',source:{type:'base64',media_type:batchFiles[ri].type||'image/jpeg',data:b64}});
-            }
-            retryContents.push({type:'text',text:'What player, number, and team is on this jersey? Return only JSON: {"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name #Number Full Team Name","description":"Full Name #Number Full Team Name","hasCOA":true,"indices":[0,1,2,3]}'});
-            const rr=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,messages:[{role:'user',content:retryContents}]})});
-            const rd=await rr.json();
-            if(rd.error?.type==='rate_limit_error'||rd.error?.type==='overloaded_error') throw new Error('rate_limit');
-            if(!rd.content) throw new Error(rd.error?.message||'No response');
-            const rt=rd.content.map(c=>c.text||'').join('');
-            lotData=JSON.parse(rt.replace(/```json|```/g,'').trim());
-          }
-          if(attempt > 0) plog(`✓ Jersey ${i+1} succeeded on attempt ${attempt+1}`,'ok');
-          break; // success
-        } catch(e) {
-          attempt++;
-          const isRateLimit = e.message.includes('rate_limit') || e.message.includes('529') || e.message.includes('overload');
-          const waitSec = isRateLimit ? 60 : Math.min(10 * attempt, 60);
-          plog(`⚠ Jersey ${i+1} error (attempt ${attempt}): ${e.message.slice(0,80)}`, 'warn');
-          plog(`⏳ Waiting ${waitSec}s before retry...`, 'warn');
-          // Wait in small chunks so stop button still works
-          for(let w=0;w<waitSec;w++){
-            if(processingAborted) break;
-            await new Promise(r=>setTimeout(r,1000));
-          }
-          if(processingAborted) break;
-        }
+      if(processingAborted) break;
+      const batchFiles = allFiles.slice(i*4, i*4+4);
+      setProgress(Math.round(5 + (i/totalLots)*20), `Preparing jersey ${i+1} of ${totalLots}...`);
+      const contents = [];
+      for(let p=0;p<batchFiles.length;p++){
+        const b64 = await fileToBase64(batchFiles[p], p===0 ? 2000 : 1600);
+        contents.push({type:'image',source:{type:'base64',media_type:batchFiles[p].type||'image/jpeg',data:b64}});
+        contents.push({type:'text',text:`Image ${p}: "${batchFiles[p].name}"`});
       }
-      if(!lotData) lotData={player:'Unknown',team:'Unknown',number:'',title:'Unknown Jersey',description:'Unknown Jersey',hasCOA:true,indices:[0,1,2,3]};
+      contents.push({type:'text', text: JERSEY_PROMPT});
+      batchRequests.push({
+        custom_id: `jersey-${i}`,
+        params: {
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 300,
+          messages: [{role:'user', content: contents}]
+        }
+      });
+    }
+    if(processingAborted){plog('⏹ Stopped.','warn');}
 
-      // Correct photo orientations and store blobs — no lot number yet
+    // ---- SUBMIT BATCH ----
+    plog(`🚀 Submitting batch of ${batchRequests.length} jerseys to Anthropic...`);
+    setProgress(28, 'Submitting batch...');
+    const batchRes = await fetch('https://api.anthropic.com/v1/messages/batches', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({requests: batchRequests})
+    });
+    const batchData = await batchRes.json();
+    if(!batchRes.ok) throw new Error(batchData.error?.message || `Batch submit failed: HTTP ${batchRes.status}`);
+    const batchId = batchData.id;
+    plog(`✅ Batch submitted! ID: ${batchId}`, 'ok');
+    plog(`⏳ Waiting for Anthropic to process all ${batchRequests.length} jerseys... (usually 2-10 min)`);
+
+    // ---- POLL UNTIL DONE ----
+    let batchDone = false;
+    let pollCount = 0;
+    while(!batchDone && !processingAborted){
+      await new Promise(r=>setTimeout(r,15000)); // poll every 15s
+      pollCount++;
+      const pollRes = await fetch(`https://api.anthropic.com/v1/messages/batches/${batchId}`,{
+        headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}
+      });
+      const pollData = await pollRes.json();
+      if(!pollRes.ok) { plog(`⚠ Poll error: ${pollData.error?.message}`, 'warn'); continue; }
+      const counts = pollData.request_counts || {};
+      const done = (counts.succeeded||0) + (counts.errored||0) + (counts.canceled||0) + (counts.expired||0);
+      const total = batchRequests.length;
+      const pct = Math.round(30 + (done/total)*40);
+      setProgress(pct, `Processing: ${done}/${total} jerseys done...`);
+      if(pollCount % 4 === 0) plog(`⏳ ${done}/${total} jerseys processed...`);
+      if(pollData.processing_status === 'ended') batchDone = true;
+    }
+    if(processingAborted){plog('⏹ Stopped.','warn');}
+
+    // ---- FETCH RESULTS ----
+    plog(`📥 Downloading results...`);
+    setProgress(72, 'Downloading results...');
+    const resultsRes = await fetch(`https://api.anthropic.com/v1/messages/batches/${batchId}/results`,{
+      headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}
+    });
+    if(!resultsRes.ok) throw new Error(`Failed to fetch batch results: HTTP ${resultsRes.status}`);
+    const resultsText = await resultsRes.text();
+
+    // Parse JSONL results and index by custom_id
+    const resultMap = {};
+    for(const line of resultsText.trim().split('\n')){
+      if(!line.trim()) continue;
+      try {
+        const r = JSON.parse(line);
+        resultMap[r.custom_id] = r;
+      } catch(e) {}
+    }
+
+    // ---- BUILD analyzedLots FROM RESULTS ----
+    const analyzedLots = [];
+    for(let i=0;i<totalLots;i++){
+      if(processingAborted) break;
+      const batchFiles = allFiles.slice(i*4, i*4+4);
+      const result = resultMap[`jersey-${i}`];
+      let lotData;
+      try {
+        if(result?.result?.type === 'succeeded'){
+          const text = result.result.message.content.map(c=>c.text||'').join('');
+          lotData = JSON.parse(text.replace(/```json|```/g,'').trim());
+        } else {
+          throw new Error(result?.result?.error?.message || 'No result');
+        }
+      } catch(e) {
+        plog(`⚠ Jersey ${i+1} parse error: ${e.message} — marking Unknown`, 'warn');
+        lotData = {player:'Unknown',team:'Unknown',number:'',title:'Unknown Jersey',description:'Unknown Jersey',hasCOA:true,indices:[0,1,2,3]};
+      }
+      plog(`✓ Jersey ${i+1}: ${lotData.player} #${lotData.number||'?'} — ${lotData.team}`,'ok');
+
+      // Correct photo orientations and store blobs
+      setProgress(Math.round(72 + (i/totalLots)*15), `Processing photos ${i+1}/${totalLots}...`);
       const blobs=[];
       for(let p=0;p<4;p++){
         const srcIdx=lotData.indices[p]??p;
@@ -1052,11 +1137,6 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
         blobs.push(await correctBlob(file));
       }
       analyzedLots.push({lotData,blobs});
-      plog(`✓ Jersey ${i+1}: ${lotData.player} #${lotData.number||'?'} — ${lotData.team}`,'ok');
-
-      if(processingAborted) { plog('⏹ Processing stopped by user.','warn'); break; }
-      if(i<totalLots-1 && !processingAborted){const pause=totalLots>20?10000:6000;setProgress(Math.round(((i+0.8)/totalLots)*70),`Pausing ${pause/1000}s...`);await new Promise(r=>setTimeout(r,pause));}
-      if(processingAborted) { plog('⏹ Processing stopped by user.','warn'); break; }
     }
 
     // All AI done — now pull latest state from Google to get true next lot number
@@ -2162,7 +2242,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.2.9
+  AUCTION MANAGER PRO · V1.3.2
 </div>
 </body>
 </html>
