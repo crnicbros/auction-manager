@@ -927,11 +927,27 @@ async function correctBlob(file){const ori=await readOrientation(file);if(ori===
 async function callClaude(files,apiKey){
   const contents=[];
   for(let i=0;i<files.length;i++){
-    const b64=await fileToBase64(files[i]);
+    // Send first image (back of jersey) at full 2000px — number is clearly visible there
+    const b64=await fileToBase64(files[i], i===0 ? 2000 : 1600);
     contents.push({type:'image',source:{type:'base64',media_type:files[i].type||'image/jpeg',data:b64}});
     contents.push({type:'text',text:`Image ${i}: "${files[i].name}"`});
   }
-  contents.push({type:'text',text:`These are ${files.length} photos of the same sports jersey lot: back, signature, COA, front (may be slightly out of order). Identify the jersey and return JSON only, no markdown:\n{"player":"Full Name","team":"Team Name","title":"Player Name Signed Team Jersey","description":"Player Name Signed Team Color Jersey w/COA","indices":[back,sig,coa,front]}\nUse 0-${files.length-1} for indices.`});
+  contents.push({type:'text',text:`You are an expert sports memorabilia authenticator. These ${files.length} photos show a signed sports jersey lot.
+
+CRITICAL TASK - JERSEY NUMBER: Look at Image 0 (back of jersey) first. There is a LARGE number printed on the back of the jersey — it is the biggest text on the jersey. Read those digits carefully. This is the jersey number. Also check the front image for the number.
+
+Identify:
+- Player full name (from signature, COA text, and jersey nameplate)
+- Team full name (e.g. "Denver Nuggets" not just "Nuggets")  
+- Jersey NUMBER — the large digits on the back/front of the jersey fabric (NOT the year, NOT a serial number)
+- Primary jersey color (e.g. "White", "Gold", "Navy Blue")
+- Sport (NBA, NFL, MLB, NHL, etc.)
+
+Return JSON only, no markdown:
+{"player":"Full Name","number":"##","team":"Full Team Name","sport":"NBA","color":"Primary Color","title":"Player Signed Team Color Jersey #Number w/COA","description":"Player Signed Team Color Jersey #Number w/COA","hasCOA":true,"indices":[back,sig,coa,front]}
+
+- indices: map to [back of jersey, signature photo, COA photo, front of jersey] using 0-${files.length-1}
+- number: MUST be the actual digits you see on the jersey (e.g. "15", "23", "7") — never use "?" or leave blank if visible`});
   let raw='';
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:contents}]})});
@@ -2128,7 +2144,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.2.1
+  AUCTION MANAGER PRO · V1.2.2
 </div>
 </body>
 </html>
