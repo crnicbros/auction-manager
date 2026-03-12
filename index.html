@@ -634,6 +634,10 @@ async function verifyCodeAgainstSheet(enteredCode) {
   if(!enteredCode) { notify('No sync code found', true); return; }
   notify('🔄 Verifying sync code...');
   try {
+    // Use pending sheet ID if available, otherwise find/create
+    const pendingId = localStorage.getItem('pending_sheet_id');
+    localStorage.removeItem('pending_sheet_id');
+    if(pendingId) state.masterSheetId = pendingId;
     const sheetId = await getMasterSheetId();
     const res = await sheetsRequest(`/values/Settings!A1:B10`);
     const rows = res.values || [];
@@ -734,21 +738,47 @@ async function verifySyncCode() {
   btn.disabled = true;
 
   try {
-    // Find the master sheet
-    const sheetsRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets?fields=spreadsheetId,properties.title', {
-      headers: { 'Authorization': 'Bearer ' + (accessToken||'') }
-    });
-    // We need to search Drive for the sheet — use the stored ID approach
-    // First find the sheet by searching via the title
-    const driveRes = await fetch("https://www.googleapis.com/drive/v3/files?q=name%3D'Auction+Manager+Pro+Data'+and+mimeType%3D'application%2Fvnd.google-apps.spreadsheet'&fields=files(id,name)", {
-      headers: { 'Authorization': 'Bearer temp' }
-    });
-    // Actually we need an access token — prompt sign in via redirect for this
-    // Store the entered code and redirect to get token
-    localStorage.setItem('pending_sync_code', input);
-    document.getElementById('sync-entry-modal').remove();
+    // Read sync code from public Google Sheet (no auth needed for published sheets)
+    const sheetId = state.masterSheetId || localStorage.getItem('master_sheet_id');
+    if(!sheetId) {
+      errEl.textContent = 'No sheet linked yet. Sign in on this device first.';
+      errEl.style.display = 'block';
+      btn.textContent = 'Sync →'; btn.disabled = false;
+      return;
+    }
+    // Use public API key read (no OAuth needed for reading)
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Settings!A1:C10?key=AIzaSyD-placeholder`);
+    // If that fails, need to sign in to read — redirect with synccode state
+    if(!res.ok) {
+      // Store code and do OAuth redirect to get token, then verify
+      localStorage.setItem('pending_sync_code', input);
+      localStorage.setItem('pending_sheet_id', sheetId);
+      document.getElementById('sync-entry-modal').remove();
+      const params = new URLSearchParams({
+        client_id: CLIENT_ID,
+        redirect_uri: window.location.origin + window.location.pathname,
+        response_type: 'token',
+        scope: SCOPES,
+        state: 'synccode'
+      });
+      window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+      return;
+    }
+    const data = await res.json();
+    const rows = data.values || [];
+    let storedCode = '', storedExpiry = 0;
+    for(const row of rows) {
+      if(row[0] === 'sync_code') storedCode = row[1] || '';
+      if(row[0] === 'sync_code_expiry') storedExpiry = parseInt(row[1]) || 0;
+    }
+    if(!storedCode) { errEl.textContent='No sync code found. Generate one in Safari first.'; errEl.style.display='block'; btn.textContent='Sync →'; btn.disabled=false; return; }
+    if(Date.now() > storedExpiry) { errEl.textContent='Code expired. Generate a new one in Safari.'; errEl.style.display='block'; btn.textContent='Sync →'; btn.disabled=false; return; }
+    if(input !== storedCode) { errEl.textContent='Wrong code. Check and try again.'; errEl.style.display='block'; btn.textContent='Sync →'; btn.disabled=false; return; }
 
-    // Redirect to Google sign in
+    // Code matches! Do OAuth to get token then pull data
+    localStorage.setItem('pending_sync_code', input);
+    localStorage.setItem('pending_sheet_id', sheetId);
+    document.getElementById('sync-entry-modal').remove();
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
       redirect_uri: window.location.origin + window.location.pathname,
@@ -2067,7 +2097,7 @@ if('serviceWorker' in navigator) {
 })();
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.0.7
+  AUCTION MANAGER PRO · V1.0.8
 </div>
 </body>
 </html>
