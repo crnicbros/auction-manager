@@ -590,30 +590,27 @@ function googleSignIn() {
 }
 
 // Handle OAuth redirect response (token comes back in URL hash)
-(function handleOAuthRedirect() {
+// Handle OAuth redirect — runs after DOM ready
+window.addEventListener('DOMContentLoaded', function handleOAuthRedirect() {
   const hash = window.location.hash;
   if(!hash) return;
   const params = new URLSearchParams(hash.substring(1));
   const token = params.get('access_token');
-  const state = params.get('state');
-  if(token && state === 'signin') {
+  const st = params.get('state');
+  if(token && st === 'signin') {
     accessToken = token;
     localStorage.setItem('g_access_token', token);
-    // Clean up URL
     history.replaceState(null, '', window.location.pathname);
-    // Fetch user info
     fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { 'Authorization': 'Bearer ' + token }
     }).then(r => r.json()).then(info => {
       userInfo = { name: info.name, email: info.email };
       localStorage.setItem('g_user', JSON.stringify(userInfo));
-      const banner = document.getElementById('signin-banner');
-      if(banner) banner.style.display = 'none';
+      showApp();
       notify('✅ Signed in as ' + info.email);
-      pullFromSheet();
     }).catch(e => notify('Sign in error: ' + e.message, true));
   }
-})();
+});
 
 function showPWASignInModal() {
   // Remove existing modal if any
@@ -1951,7 +1948,7 @@ if('serviceWorker' in navigator) {
 })();
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.0.5
+  AUCTION MANAGER PRO · V1.0.6
 </div>
 </body>
 </html>
