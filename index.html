@@ -944,7 +944,6 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
   document.getElementById('results-section').style.display='none';
   setStep(3);
 
-  const startLot=parseInt(document.getElementById('start-lot').value)||1;
   processedLots=[];
   const zip=new JSZip();
   const toteKey=`${auctionName}__${toteLabel}`;
@@ -956,9 +955,47 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
 
   try{
     const totalLots=Math.floor(allFiles.length/4);
-    let lotCounter=startLot;
 
-    // First add carry-forwards
+    // Process ALL photos first — no lot numbers yet
+    plog(`🔍 Analyzing ${totalLots} lot${totalLots!==1?'s':''} with AI...`);
+    const analyzedLots=[];
+    for(let i=0;i<totalLots;i++){
+      const batchFiles=allFiles.slice(i*4,i*4+4);
+      setProgress(Math.round((i/totalLots)*70),`Analyzing jersey ${i+1} of ${totalLots}...`);
+      plog(`🔍 Jersey ${i+1}/${totalLots}: analyzing...`);
+
+      let lotData;
+      try{lotData=await callClaude(batchFiles,apiKey);}
+      catch(e){plog(`⚠ Jersey ${i+1} AI error: ${e.message}`,'warn');lotData={player:'Unknown',team:'Unknown',title:'Signed Jersey',description:'Signed Jersey w/COA',indices:[0,1,2,3]};}
+
+      // Correct photo orientations and store blobs — no lot number yet
+      const blobs=[];
+      for(let p=0;p<4;p++){
+        const srcIdx=lotData.indices[p]??p;
+        const file=batchFiles[srcIdx]??batchFiles[p];
+        if(!file){blobs.push(null);continue;}
+        blobs.push(await correctBlob(file));
+      }
+      analyzedLots.push({lotData,blobs});
+      plog(`✓ Jersey ${i+1}: ${lotData.player} #${lotData.number||'?'} — ${lotData.team} (${lotData.color||'?'} ${lotData.sport||'jersey'})`,'ok');
+
+      if(i<totalLots-1){setProgress(Math.round(((i+0.8)/totalLots)*70),'Pausing...');await new Promise(r=>setTimeout(r,5000));}
+    }
+
+    // All AI done — now pull latest state from Google to get true next lot number
+    setProgress(75,'Getting next lot number...');
+    if(accessToken && state.masterSheetId){
+      plog('🔄 Syncing with Google Sheets for lot numbers...');
+      try{ await pullFromSheet(); plog('✅ Synced — assigning lot numbers','ok'); }
+      catch(e){ plog('⚠ Could not sync — using local lot numbers','warn'); }
+    }
+
+    // Assign lot numbers NOW after sync
+    const maxExisting = state.lots.filter(l=>l.auctionName===auctionName).reduce((m,l)=>Math.max(m,l.lotNum||0),0);
+    let lotCounter = Math.max(maxExisting+1, parseInt(document.getElementById('start-lot').value)||1);
+    plog(`📋 Starting at lot ${lotCounter}`);
+
+    // First assign carry-forwards
     for(const cf of cfForTote){
       const lot={...cf,id:`lot_${Date.now()}_cf_${cf.originalLotNum}`,lotNum:lotCounter,auctionName,toteLabel,toteKey,
         history:[...(cf.history||[]),{auction:auctionName,tote:toteLabel,lotNum:lotCounter,date:new Date().toLocaleDateString()}],soldStatus:undefined};
@@ -969,36 +1006,24 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     // Remove used carry-forwards
     state.carryForward=state.carryForward.filter(c=>c.toteLabel!==toteLabel);
 
-    // Process new photos
-    for(let i=0;i<totalLots;i++){
+    // Now assign lot numbers to analyzed jerseys and build zip
+    for(let i=0;i<analyzedLots.length;i++){
+      const {lotData,blobs}=analyzedLots[i];
       const lotNum=lotCounter++;
-      const batchFiles=allFiles.slice(i*4,i*4+4);
-      setProgress(Math.round((i/totalLots)*70),`Analyzing lot ${lotNum} (${i+1}/${totalLots})...`);
-      plog(`🔍 Lot ${lotNum}: analyzing...`);
-
-      let lotData;
-      try{lotData=await callClaude(batchFiles,apiKey);}
-      catch(e){plog(`⚠ Lot ${lotNum} AI error: ${e.message}`,'warn');lotData={player:'Unknown',team:'Unknown',title:'Signed Jersey',description:'Signed Jersey w/COA',indices:[0,1,2,3]};}
-
       const thumbUrls=[];
       for(let p=0;p<4;p++){
-        const srcIdx=lotData.indices[p]??p;
-        const file=batchFiles[srcIdx]??batchFiles[p];
-        if(!file){thumbUrls.push('');continue;}
-        const blob=await correctBlob(file);
+        const blob=blobs[p];
+        if(!blob){thumbUrls.push('');continue;}
         zip.file(`${lotNum}-${p+1}.jpg`,blob);
         thumbUrls.push(URL.createObjectURL(blob));
       }
-
       const lot={id:`lot_${Date.now()}_${i}`,lotNum,auctionName,toteLabel,toteKey,
         player:lotData.player,team:lotData.team,title:lotData.title,description:lotData.description,
         number:lotData.number||'',color:lotData.color||'',sport:lotData.sport||'',hasCOA:lotData.hasCOA!==false,
         thumbUrls,photoLabels:['Back','Signature','COA','Front'],
         history:[{auction:auctionName,tote:toteLabel,lotNum,date:new Date().toLocaleDateString()}],sold:false};
       processedLots.push(lot);lotNums.push(lotNum);
-      plog(`✓ Lot ${lotNum}: ${lotData.player} #${lotData.number||'?'} — ${lotData.team} (${lotData.color||'?'} ${lotData.sport||'jersey'})`,'ok');
-
-      if(i<totalLots-1){setProgress(Math.round(((i+0.8)/totalLots)*70),'Pausing...');await new Promise(r=>setTimeout(r,5000));}
+      plog(`📋 Lot ${lotNum}: ${lotData.player} — ${lotData.team}`,'ok');
     }
 
     // Save state
@@ -1937,7 +1962,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.3
+  AUCTION MANAGER PRO · V1.1.4
 </div>
 </body>
 </html>
