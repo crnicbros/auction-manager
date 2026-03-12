@@ -921,7 +921,7 @@ async function callClaude(files,apiKey){
   contents.push({type:'text',text:`These are ${files.length} photos of the same sports jersey lot: back, signature, COA, front (may be slightly out of order). Identify the jersey and return JSON only, no markdown:\n{"player":"Full Name","team":"Team Name","title":"Player Name Signed Team Jersey","description":"Player Name Signed Team Color Jersey w/COA","indices":[back,sig,coa,front]}\nUse 0-${files.length-1} for indices.`});
   let raw='';
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:contents}]})});
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:contents}]})});
     raw=await r.text();
     const data=JSON.parse(raw);
     if(!r.ok)throw new Error(data.error?.message||`HTTP ${r.status}`);
@@ -992,10 +992,11 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
 
       const lot={id:`lot_${Date.now()}_${i}`,lotNum,auctionName,toteLabel,toteKey,
         player:lotData.player,team:lotData.team,title:lotData.title,description:lotData.description,
+        number:lotData.number||'',color:lotData.color||'',sport:lotData.sport||'',hasCOA:lotData.hasCOA!==false,
         thumbUrls,photoLabels:['Back','Signature','COA','Front'],
         history:[{auction:auctionName,tote:toteLabel,lotNum,date:new Date().toLocaleDateString()}],sold:false};
       processedLots.push(lot);lotNums.push(lotNum);
-      plog(`✓ Lot ${lotNum}: ${lotData.player} — ${lotData.team}`,'ok');
+      plog(`✓ Lot ${lotNum}: ${lotData.player} #${lotData.number||'?'} — ${lotData.team} (${lotData.color||'?'} ${lotData.sport||'jersey'})`,'ok');
 
       if(i<totalLots-1){setProgress(Math.round(((i+0.8)/totalLots)*70),'Pausing...');await new Promise(r=>setTimeout(r,5000));}
     }
@@ -1936,7 +1937,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.1
+  AUCTION MANAGER PRO · V1.1.3
 </div>
 </body>
 </html>
