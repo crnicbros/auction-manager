@@ -1050,11 +1050,92 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     notify(`✅ ${processedLots.length} lots ready!`);
     // refresh auctions tab in background
     setTimeout(()=>{ if(document.getElementById('tab-auctions').classList.contains('active')) renderAuctions(); }, 500);
+
+    // Auto-upload ZIP to Google Drive if signed in
+    if(accessToken) {
+      plog('☁️ Uploading ZIP to Google Drive...');
+      try {
+        const zipFileName = `${auctionName}_${toteLabel}_photos.zip`;
+        await uploadZipToDrive(currentZip._built, zipFileName, auctionName);
+        plog(`✅ ZIP saved to Google Drive: ${zipFileName}`,'ok');
+        notify('☁️ Photos uploaded to Google Drive!');
+      } catch(e) {
+        plog(`⚠ Drive upload failed: ${e.message} — use Download ZIP instead`,'warn');
+      }
+    } else {
+      plog('💡 Sign in with Google to auto-save ZIPs to Drive','warn');
+    }
   }catch(e){
     plog(`❌ ${e.message}`,'err');setProgress(0,'Error');notify('Failed: '+e.message,true);
   }
   document.getElementById('process-btn').disabled=false;
 });
+
+async function uploadZipToDrive(blob, fileName, auctionName) {
+  // Find or create auction folder in Drive
+  const folderName = `Auction Manager - ${auctionName}`;
+  
+  // Search for existing folder
+  const searchRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name%3D'${encodeURIComponent(folderName)}'+and+mimeType%3D'application%2Fvnd.google-apps.folder'+and+trashed%3Dfalse&fields=files(id,name)`,
+    { headers: { 'Authorization': 'Bearer ' + accessToken } }
+  );
+  const searchData = await searchRes.json();
+  
+  let folderId;
+  if(searchData.files && searchData.files.length > 0) {
+    folderId = searchData.files[0].id;
+  } else {
+    // Create folder
+    const folderRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
+    });
+    const folderData = await folderRes.json();
+    folderId = folderData.id;
+  }
+
+  // Upload ZIP using multipart upload
+  const metadata = { name: fileName, parents: [folderId] };
+  const boundary = 'auction_manager_boundary';
+  const metaPart = `--${boundary}
+Content-Type: application/json
+
+${JSON.stringify(metadata)}
+`;
+  const filePart = `--${boundary}
+Content-Type: application/zip
+
+`;
+  const endPart = `
+--${boundary}--`;
+
+  const metaBytes = new TextEncoder().encode(metaPart);
+  const fileBytes = new Uint8Array(await blob.arrayBuffer());
+  const filePartBytes = new TextEncoder().encode(filePart);
+  const endBytes = new TextEncoder().encode(endPart);
+
+  const combined = new Uint8Array(metaBytes.length + filePartBytes.length + fileBytes.length + endBytes.length);
+  combined.set(metaBytes, 0);
+  combined.set(filePartBytes, metaBytes.length);
+  combined.set(fileBytes, metaBytes.length + filePartBytes.length);
+  combined.set(endBytes, metaBytes.length + filePartBytes.length + fileBytes.length);
+
+  const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      'Content-Type': `multipart/related; boundary=${boundary}`
+    },
+    body: combined
+  });
+  if(!uploadRes.ok) {
+    const err = await uploadRes.json();
+    throw new Error(err.error?.message || `HTTP ${uploadRes.status}`);
+  }
+  return await uploadRes.json();
+}
 
 function getLotIdx(lotId) {
   return processedLots.findIndex(l => l.id === lotId);
@@ -1962,7 +2043,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.4
+  AUCTION MANAGER PRO · V1.1.5
 </div>
 </body>
 </html>
