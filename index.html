@@ -1051,19 +1051,18 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     // refresh auctions tab in background
     setTimeout(()=>{ if(document.getElementById('tab-auctions').classList.contains('active')) renderAuctions(); }, 500);
 
-    // Auto-upload ZIP to Google Drive if signed in
+    // Auto-upload photos to Google Drive tote folder if signed in
     if(accessToken) {
-      plog('☁️ Uploading ZIP to Google Drive...');
+      plog(`☁️ Uploading photos to Google Drive (${auctionName} / ${toteLabel})...`);
       try {
-        const zipFileName = `${auctionName}_${toteLabel}_photos.zip`;
-        await uploadZipToDrive(currentZip._built, zipFileName, auctionName);
-        plog(`✅ ZIP saved to Google Drive: ${zipFileName}`,'ok');
-        notify('☁️ Photos uploaded to Google Drive!');
+        const { uploaded } = await uploadPhotosToToteFolder(processedLots, auctionName, toteLabel);
+        plog(`✅ ${uploaded} photos uploaded to Drive: Auction Manager Pro / ${auctionName} / ${toteLabel}`,'ok');
+        notify(`☁️ ${uploaded} photos saved to Google Drive!`);
       } catch(e) {
         plog(`⚠ Drive upload failed: ${e.message} — use Download ZIP instead`,'warn');
       }
     } else {
-      plog('💡 Sign in with Google to auto-save ZIPs to Drive','warn');
+      plog('💡 Sign in with Google to auto-save photos to Drive','warn');
     }
   }catch(e){
     plog(`❌ ${e.message}`,'err');setProgress(0,'Error');notify('Failed: '+e.message,true);
@@ -2043,7 +2042,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.5
+  AUCTION MANAGER PRO · V1.1.6
 </div>
 </body>
 </html>
