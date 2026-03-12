@@ -660,7 +660,9 @@ window.onload = () => {
     (document.getElementById('user-name')||{textContent:''}).textContent = userInfo.name || userInfo.email;
     (document.getElementById('user-avatar')||{textContent:''}).textContent = (userInfo.name||'?')[0].toUpperCase();
     (document.getElementById('signin-banner')||{style:{}}).style.display = 'none';
-    setTimeout(()=>pullFromSheet(), 500);
+    // Only pull from sheet if local data is empty
+    if(!state.lots.length && !state.totes.length) setTimeout(()=>pullFromSheet(), 500);
+    else setSyncStatus('ok', state.masterSheetId);
   } else {
     (document.getElementById('signin-banner')||{style:{}}).style.display = 'flex';
   }
@@ -853,14 +855,22 @@ async function pullFromSheet() {
       notify('Google Sheet connected — starting fresh.');
     }
     setSyncStatus('ok', sheetId);
-  } catch(e) { setSyncStatus('error', null, e.message); notify('Could not load from Google: '+e.message,true); }
+  } catch(e) {
+    if(e.message && e.message.includes('Quota')) {
+      setSyncStatus('error', null, 'Google quota hit — retrying in 60s...');
+      setTimeout(()=>pullFromSheet(), 60000);
+    } else {
+      setSyncStatus('error', null, e.message);
+      notify('Could not load from Google: '+e.message, true);
+    }
+  }
 }
 
 function scheduleSyncToGoogle() {
   if(!accessToken) return;
   clearTimeout(syncTimer);
   setSyncStatus('pending');
-  syncTimer = setTimeout(()=>pushToSheet(), 3000);
+  syncTimer = setTimeout(()=>pushToSheet(), 10000);
 }
 
 function setSyncStatus(status, sheetId, errMsg) {
