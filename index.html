@@ -333,7 +333,10 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="progress-wrap"><div class="progress-fill" id="prog-fill"></div></div>
     <div class="progress-text" id="prog-text">Ready</div>
     <div class="log" id="proc-log"></div>
-    <button class="btn btn-gold btn-full" id="process-btn" disabled>⚡ Analyze &amp; Process Photos</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gold btn-full" id="process-btn" disabled>⚡ Analyze &amp; Process Photos</button>
+      <button class="btn btn-red" id="stop-btn" style="display:none;min-width:80px" onclick="stopProcessing()">⏹ Stop</button>
+    </div>
   </div>
 
   <div id="results-section" style="display:none">
@@ -494,6 +497,7 @@ let accessToken=null;
 let userInfo=null;
 let allFiles=[];
 let processedLots=[];
+let processingAborted=false;
 let currentZip=null;
 let currentCsv='';
 let unsoldLots=[];
@@ -933,6 +937,13 @@ async function callClaude(files,apiKey){
   }catch(e){throw new Error(`${e.message}${raw?' | '+raw.slice(0,120):''}`);}
 }
 
+function stopProcessing() {
+  processingAborted = true;
+  document.getElementById('stop-btn').textContent = '⏳ Stopping...';
+  document.getElementById('stop-btn').disabled = true;
+  plog('⏹ Stopping after current jersey finishes...', 'warn');
+}
+
 document.getElementById('process-btn').addEventListener('click',async()=>{
   const apiKey=document.getElementById('api-key').value.trim();
   if(!apiKey){notify('Enter your Anthropic API key.',true);return;}
@@ -942,6 +953,10 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
   if(!allFiles.length)return;
 
   document.getElementById('process-btn').disabled=true;
+  document.getElementById('stop-btn').style.display='block';
+  document.getElementById('stop-btn').disabled=false;
+  document.getElementById('stop-btn').textContent='⏹ Stop';
+  processingAborted=false;
   document.getElementById('proc-log').innerHTML='';
   document.getElementById('proc-log').style.display='block';
   document.getElementById('results-section').style.display='none';
@@ -1001,7 +1016,9 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       analyzedLots.push({lotData,blobs});
       plog(`✓ Jersey ${i+1}: ${lotData.player} #${lotData.number||'?'} — ${lotData.team} (${lotData.color||'?'} ${lotData.sport||'jersey'})`,'ok');
 
+      if(processingAborted) { plog('⏹ Processing stopped by user.','warn'); break; }
       if(i<totalLots-1){setProgress(Math.round(((i+0.8)/totalLots)*70),'Pausing...');await new Promise(r=>setTimeout(r,5000));}
+      if(processingAborted) { plog('⏹ Processing stopped by user.','warn'); break; }
     }
 
     // All AI done — now pull latest state from Google to get true next lot number
@@ -1082,6 +1099,8 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     plog(`❌ ${e.message}`,'err');setProgress(0,'Error');notify('Failed: '+e.message,true);
   }
   document.getElementById('process-btn').disabled=false;
+  document.getElementById('stop-btn').style.display='none';
+  processingAborted=false;
 });
 
 async function findOrCreateFolder(name, parentId=null) {
@@ -2103,7 +2122,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.9
+  AUCTION MANAGER PRO · V1.2.0
 </div>
 </body>
 </html>
