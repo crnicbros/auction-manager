@@ -2,7 +2,7 @@
 // SERVICE WORKER — Auction Manager Pro
 // Bump CACHE_VERSION whenever you push new code to GitHub
 // ============================================================
-const CACHE_VERSION = 'v1.0.7';
+const CACHE_VERSION = 'v1.0.8';
 const CACHE_NAME = 'auction-manager-' + CACHE_VERSION;
 
 const PRECACHE = [
