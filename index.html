@@ -2230,7 +2230,7 @@ function updateCamUI() {
   const startLot = parseInt(document.getElementById('start-lot').value)||1;
 
   // Update counters
-  document.getElementById('cam-lot-num').textContent = startLot + currentLotIdx;
+  document.getElementById('cam-lot-num').textContent = currentLotIdx + 1;
   document.getElementById('cam-photo-num').textContent = currentPhotoInLot + 1;
   document.getElementById('cam-label-overlay').textContent = CAM_LABELS[currentPhotoInLot];
   document.getElementById('cam-count').textContent = total;
@@ -2260,7 +2260,7 @@ function updateCamUI() {
     summaryEl.style.display = 'block';
     listEl.innerHTML = '';
     for(let l = 0; l < completedLots; l++) {
-      const lotNum = startLot + l;
+      const lotNum = l + 1;
       const div = document.createElement('div');
       div.className = 'cam-lot-card';
       const thumbs = [0,1,2,3].map(i => {
@@ -2343,7 +2343,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.3.8
+  AUCTION MANAGER PRO · V1.3.9
 </div>
 </body>
 </html>
