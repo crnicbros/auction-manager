@@ -286,9 +286,13 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     <!-- CAMERA MODE -->
     <div id="camera-mode" style="display:none">
       <!-- Viewfinder -->
-      <div style="position:relative;background:#000;border-radius:12px;overflow:hidden;margin-bottom:12px">
+      <div id="cam-viewfinder" style="position:relative;background:#000;border-radius:12px;overflow:hidden;margin-bottom:12px;touch-action:none">
         <video id="cam-video" autoplay playsinline style="width:100%;display:block;aspect-ratio:4/3;object-fit:cover;transform:none"></video>
         <canvas id="cam-canvas" style="display:none"></canvas>
+        <!-- Focus ring -->
+        <div id="cam-focus-ring" style="display:none;position:absolute;width:64px;height:64px;border:2px solid var(--gold);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;transition:opacity 0.3s"></div>
+        <!-- Zoom indicator -->
+        <div id="cam-zoom-indicator" style="display:none;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);border-radius:8px;padding:4px 12px;font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--gold);letter-spacing:1px">1.0×</div>
         <!-- Lot/photo counter overlay -->
         <div style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.65);border-radius:8px;padding:6px 12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:15px;color:#fff">
           LOT <span id="cam-lot-num">—</span> · PHOTO <span id="cam-photo-num">1</span>/4
@@ -1695,6 +1699,71 @@ async function startCamera() {
   }
 }
 
+// Tap to focus
+document.getElementById('cam-viewfinder') && document.getElementById('cam-viewfinder').addEventListener('click', async function(e) {
+  const video = document.getElementById('cam-video');
+  const track = camStream && camStream.getVideoTracks()[0];
+  if(!track) return;
+  const rect = this.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+  // Show focus ring
+  const ring = document.getElementById('cam-focus-ring');
+  ring.style.left = (x * 100) + '%';
+  ring.style.top = (y * 100) + '%';
+  ring.style.display = 'block';
+  ring.style.opacity = '1';
+  setTimeout(() => { ring.style.opacity = '0'; setTimeout(() => ring.style.display = 'none', 300); }, 800);
+  // Apply focus if supported
+  const caps = track.getCapabilities && track.getCapabilities();
+  if(caps && caps.focusMode && caps.focusMode.includes('manual')) {
+    try { await track.applyConstraints({ advanced: [{ focusMode: 'manual', pointsOfInterest: [{x, y}] }] }); } catch(e) {}
+  }
+});
+
+// Pinch to zoom
+let camZoom = 1, pinchStartDist = 0, pinchStartZoom = 1;
+let camZoomTimer = null;
+
+function getCamZoomRange() {
+  const track = camStream && camStream.getVideoTracks()[0];
+  if(!track) return {min:1, max:1};
+  const caps = track.getCapabilities && track.getCapabilities();
+  return caps && caps.zoom ? {min: caps.zoom.min||1, max: caps.zoom.max||1} : {min:1, max:1};
+}
+
+document.getElementById('cam-viewfinder') && document.getElementById('cam-viewfinder').addEventListener('touchstart', function(e) {
+  if(e.touches.length === 2) {
+    pinchStartDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    pinchStartZoom = camZoom;
+    e.preventDefault();
+  }
+}, {passive: false});
+
+document.getElementById('cam-viewfinder') && document.getElementById('cam-viewfinder').addEventListener('touchmove', async function(e) {
+  if(e.touches.length === 2) {
+    e.preventDefault();
+    const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    const scale = dist / pinchStartDist;
+    const range = getCamZoomRange();
+    camZoom = Math.min(range.max, Math.max(range.min, pinchStartZoom * scale));
+    // Show zoom indicator
+    const ind = document.getElementById('cam-zoom-indicator');
+    ind.textContent = camZoom.toFixed(1) + '×';
+    ind.style.display = 'block';
+    clearTimeout(camZoomTimer);
+    camZoomTimer = setTimeout(() => ind.style.display = 'none', 1500);
+    // Apply zoom
+    const track = camStream && camStream.getVideoTracks()[0];
+    if(track) {
+      const caps = track.getCapabilities && track.getCapabilities();
+      if(caps && caps.zoom) {
+        try { await track.applyConstraints({ advanced: [{ zoom: camZoom }] }); } catch(e) {}
+      }
+    }
+  }
+}, {passive: false});
+
 function stopCamera() {
   if(camStream) { camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   if(screen.orientation && screen.orientation.unlock) {
@@ -1867,7 +1936,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.0
+  AUCTION MANAGER PRO · V1.1.1
 </div>
 </body>
 </html>
