@@ -907,7 +907,7 @@ function setProgress(pct,msg){document.getElementById('prog-fill').style.width=p
 
 function readOrientation(file){return new Promise(resolve=>{const r=new FileReader();r.onload=e=>{const v=new DataView(e.target.result);if(v.getUint16(0,false)!==0xFFD8)return resolve(1);let off=2;while(off<v.byteLength){const mk=v.getUint16(off,false);off+=2;if(mk===0xFFE1){if(v.getUint32(off+2,false)!==0x45786966)return resolve(1);const le=v.getUint16(off+8,false)===0x4949;off+=10;const tags=v.getUint16(off,le);off+=2;for(let i=0;i<tags;i++)if(v.getUint16(off+i*12,le)===0x0112)return resolve(v.getUint16(off+i*12+8,le));}else if((mk&0xFF00)!==0xFF00)break;else off+=v.getUint16(off,false);}resolve(1);};r.readAsArrayBuffer(file.slice(0,65536));})}
 function fixOrientation(img,ori){const c=document.createElement('canvas');const ctx=c.getContext('2d');const w=img.naturalWidth,h=img.naturalHeight;if([5,6,7,8].includes(ori)){c.width=h;c.height=w;}else{c.width=w;c.height=h;}switch(ori){case 2:ctx.transform(-1,0,0,1,w,0);break;case 3:ctx.transform(-1,0,0,-1,w,h);break;case 4:ctx.transform(1,0,0,-1,0,h);break;case 5:ctx.transform(0,1,1,0,0,0);break;case 6:ctx.transform(0,1,-1,0,h,0);break;case 7:ctx.transform(0,-1,-1,0,h,w);break;case 8:ctx.transform(0,-1,1,0,0,w);break;}ctx.drawImage(img,0,0);return c;}
-function fileToBase64(file,maxSize=800){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;if(w>maxSize||h>maxSize){if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}else{w=Math.round(w*maxSize/h);h=maxSize;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.82).split(',')[1]);};img.onerror=rej;img.src=url;});}
+function fileToBase64(file,maxSize=1600){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;if(w>maxSize||h>maxSize){if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}else{w=Math.round(w*maxSize/h);h=maxSize;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.92).split(',')[1]);};img.onerror=rej;img.src=url;});}
 function loadImg(file){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=url;});}
 async function correctBlob(file){const ori=await readOrientation(file);if(ori===1)return file;const img=await loadImg(file);const canvas=fixOrientation(img,ori);URL.revokeObjectURL(img.src);return new Promise(res=>canvas.toBlob(res,'image/jpeg',0.92));}
 
@@ -966,7 +966,26 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
 
       let lotData;
       try{lotData=await callClaude(batchFiles,apiKey);}
-      catch(e){plog(`⚠ Jersey ${i+1} AI error: ${e.message}`,'warn');lotData={player:'Unknown',team:'Unknown',title:'Signed Jersey',description:'Signed Jersey w/COA',indices:[0,1,2,3]};}
+      catch(e){
+        plog(`⚠ Jersey ${i+1} AI error: ${e.message} — retrying...`,'warn');
+        // Retry once with simpler prompt
+        try {
+          const retryContents = [];
+          for(let ri=0;ri<batchFiles.length;ri++){
+            const b64=await fileToBase64(batchFiles[ri]);
+            retryContents.push({type:'image',source:{type:'base64',media_type:batchFiles[ri].type||'image/jpeg',data:b64}});
+          }
+          retryContents.push({type:'text',text:'Look at these jersey photos. What is the player name and team? Return only JSON: {"player":"Name","team":"Team","number":"#","color":"Color","sport":"NFL","title":"Player Signed Team Color Jersey #N w/COA","description":"Player Signed Team Color Jersey #N w/COA","hasCOA":true,"indices":[0,1,2,3]}'});
+          const rr=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:retryContents}]})});
+          const rd=await rr.json();
+          const rt=rd.content.map(c=>c.text||'').join('');
+          lotData=JSON.parse(rt.replace(/```json|```/g,'').trim());
+          plog(`✓ Retry succeeded: ${lotData.player}`,'ok');
+        } catch(e2) {
+          plog(`⚠ Retry also failed: ${e2.message}`,'warn');
+          lotData={player:'Unknown',team:'Unknown',title:'Signed Jersey',description:'Signed Jersey w/COA',indices:[0,1,2,3]};
+        }
+      }
 
       // Correct photo orientations and store blobs — no lot number yet
       const blobs=[];
@@ -2042,7 +2061,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.1.6
+  AUCTION MANAGER PRO · V1.1.7
 </div>
 </body>
 </html>
