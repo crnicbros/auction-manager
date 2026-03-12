@@ -1232,7 +1232,7 @@ function deleteLot(lotId){
 function renderLotsGrid(){
   const grid=document.getElementById('lots-grid');grid.innerHTML='';
   processedLots.forEach((lot,idx)=>{
-    const div=document.createElement('div');div.className='lot-card';div.id=`lc_${idx}`;
+    const div=document.createElement('div');div.className='lot-card';div.id=`lc_${lot.id}`;
     const cfBadge=lot.history&&lot.history.length>1?'<span class="badge badge-purple">Carried Forward</span>':'';
     div.innerHTML=`
       <div class="lot-num" style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--gold);line-height:1;text-align:center;padding-right:12px;border-right:1px solid var(--border);min-width:50px">${lot.lotNum}</div>
@@ -1421,17 +1421,19 @@ function toggleEdit(lotId){
   card.classList.toggle('editing', ef.classList.contains('open'));
 }
 
-function saveLotEdit(idx){
+function saveLotEdit(lotId){
+  const idx=getLotIdx(lotId);
   const lot=processedLots[idx];
-  lot.player=document.getElementById(`ep_${idx}`).value;
-  lot.team=document.getElementById(`et_${idx}`).value;
-  lot.title=document.getElementById(`etitle_${idx}`).value;
-  lot.description=document.getElementById(`edesc_${idx}`).value;
-  document.getElementById(`lt_${idx}`).textContent=lot.title;
-  document.getElementById(`ld_${idx}`).textContent=lot.description;
+  if(!lot) return;
+  lot.player=document.getElementById(`ep_${lotId}`).value;
+  lot.team=document.getElementById(`et_${lotId}`).value;
+  lot.title=document.getElementById(`etitle_${lotId}`).value;
+  lot.description=document.getElementById(`edesc_${lotId}`).value;
+  document.getElementById(`lt_${lotId}`).textContent=lot.title;
+  document.getElementById(`ld_${lotId}`).textContent=lot.description;
   const si=state.lots.findIndex(l=>l.id===lot.id);
   if(si>=0)Object.assign(state.lots[si],lot);
-  saveState();toggleEdit(idx);notify('Saved!');
+  saveState();toggleEdit(lotId);notify('Saved!');
   const rows=[['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
   processedLots.forEach(l=>rows.push([l.lotNum,l.title,l.description,1]));
   currentCsv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -2141,7 +2143,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.2.6
+  AUCTION MANAGER PRO · V1.2.7
 </div>
 </body>
 </html>
