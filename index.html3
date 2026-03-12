@@ -1,0 +1,1093 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auction Manager Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#C9A84C;--gold2:#E8C96A;
+  --bg:#0A0A0A;--bg2:#111111;--bg3:#181818;--bg4:#202020;
+  --border:#252525;--border2:#333;
+  --text:#EFEFEF;--muted:#666;--muted2:#999;
+  --green:#52b788;--red:#e05252;--blue:#4a9eda;--purple:#9b72cf;
+}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-bottom:80px}
+
+.header{background:linear-gradient(180deg,#131313 0%,#0a0a0a 100%);border-bottom:2px solid var(--border);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.header-brand h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(26px,5vw,44px);letter-spacing:5px;background:linear-gradient(135deg,var(--gold),var(--gold2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1}
+.header-brand p{color:var(--muted);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:3px}
+.header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.api-field{display:flex;align-items:center;gap:8px}
+.api-field label{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+.api-field input{background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'Barlow',sans-serif;font-size:13px;padding:8px 12px;outline:none;width:200px;transition:border-color 0.2s}
+.api-field input:focus{border-color:var(--gold)}
+
+.user-pill{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:999px;padding:6px 14px 6px 8px;font-size:13px;cursor:pointer;transition:border-color 0.2s}
+.user-pill:hover{border-color:var(--gold)}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#000}
+.user-name{color:var(--text);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.google-signin{background:linear-gradient(135deg,#1a4060,var(--blue));color:#fff;border:none;border-radius:8px;padding:9px 18px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;transition:opacity 0.2s;display:flex;align-items:center;gap:8px}
+.google-signin:hover{opacity:0.88}
+.google-signin svg{width:18px;height:18px}
+
+/* LOGIN SCREEN */
+.login-screen{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:20px}
+.login-screen h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(32px,6vw,56px);letter-spacing:5px;background:linear-gradient(135deg,var(--gold),var(--gold2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center}
+.login-screen p{color:var(--muted2);font-size:14px;text-align:center;max-width:380px;line-height:1.6}
+.login-box{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:36px;text-align:center;max-width:420px;width:100%}
+.login-box .icon{font-size:52px;margin-bottom:16px;display:block}
+.login-box h3{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;color:var(--text);margin-bottom:8px}
+.login-box p{font-size:13px;color:var(--muted2);margin-bottom:24px;line-height:1.5}
+#google-btn-container{display:flex;justify-content:center}
+
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;overflow-x:auto}
+.tab-btn{flex:1;min-width:110px;padding:13px 8px;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--muted);cursor:pointer;border:none;border-bottom:3px solid transparent;background:none;transition:all 0.2s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--gold);border-bottom-color:var(--gold);background:rgba(201,168,76,0.04)}
+
+.main{max-width:820px;margin:0 auto;padding:22px 16px 0}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:16px}
+.card-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--gold);margin-bottom:14px}
+
+input[type=text],input[type=number],input[type=password],select,textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'Barlow',sans-serif;font-size:14px;padding:9px 13px;outline:none;transition:border-color 0.2s;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+select option{background:var(--bg3)}
+textarea{resize:vertical;min-height:60px}
+.field{margin-bottom:12px}
+.field-label{display:block;font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.row{display:flex;gap:10px}.row .field{flex:1}
+.hint{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic}
+
+.drop-zone{border:2px dashed var(--border2);border-radius:10px;padding:34px 20px;text-align:center;cursor:pointer;background:var(--bg3);transition:all 0.2s;position:relative}
+.drop-zone:hover,.drop-zone.over{border-color:var(--gold);background:rgba(201,168,76,0.04)}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.drop-icon{font-size:34px;display:block;margin-bottom:8px}
+.drop-zone h3{font-size:15px;font-weight:500;margin-bottom:3px}
+.drop-zone p{font-size:12px;color:var(--muted2)}
+.file-info{margin-top:10px;font-size:13px;color:var(--gold);font-weight:500;min-height:16px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:none;border-radius:8px;padding:11px 22px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;transition:opacity 0.2s,transform 0.15s;white-space:nowrap}
+.btn:hover{opacity:0.88;transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:0.35;cursor:not-allowed;transform:none}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000}
+.btn-green{background:linear-gradient(135deg,#2d6a4f,var(--green));color:#fff}
+.btn-red{background:linear-gradient(135deg,#6a2d2d,var(--red));color:#fff}
+.btn-blue{background:linear-gradient(135deg,#1a4060,var(--blue));color:#fff}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--muted2)}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
+.btn-sm{font-size:12px;padding:6px 13px;letter-spacing:1px}
+.btn-full{width:100%;margin-top:8px}
+
+.progress-wrap{background:var(--bg3);border-radius:999px;height:5px;overflow:hidden;margin:12px 0 5px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:999px;width:0%;transition:width 0.4s ease}
+.progress-text{font-size:12px;color:var(--muted2)}
+
+.log{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:12px;max-height:150px;overflow-y:auto;font-size:11px;font-family:monospace;color:var(--muted2);margin-top:12px;display:none}
+.log div{margin-bottom:2px}
+.log .ok{color:var(--green)}.log .warn{color:var(--gold)}.log .err{color:var(--red)}
+
+.lots-grid{display:grid;gap:10px;margin-top:10px}
+.lot-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;display:grid;grid-template-columns:50px 1fr auto;gap:12px;align-items:start}
+.lot-card.editing{border-color:var(--gold)}
+.lot-num{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--gold);line-height:1;text-align:center;padding-right:12px;border-right:1px solid var(--border)}
+.lot-title-display{font-size:13px;font-weight:600;margin-bottom:2px}
+.lot-desc-display{font-size:11px;color:var(--muted2);margin-bottom:6px}
+.lot-meta{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:999px;border:1px solid}
+.badge-gold{background:rgba(201,168,76,0.1);color:var(--gold);border-color:rgba(201,168,76,0.25)}
+.badge-green{background:rgba(82,183,136,0.1);color:var(--green);border-color:rgba(82,183,136,0.25)}
+.badge-red{background:rgba(224,82,82,0.1);color:var(--red);border-color:rgba(224,82,82,0.25)}
+.badge-blue{background:rgba(74,158,218,0.1);color:var(--blue);border-color:rgba(74,158,218,0.25)}
+.lot-thumbs{display:flex;gap:5px;flex-wrap:wrap}
+.thumb-wrap{display:flex;flex-direction:column;align-items:center}
+.thumb{width:46px;height:46px;border-radius:5px;object-fit:cover;border:1px solid var(--border2);background:var(--bg4)}
+.thumb-lbl{font-size:9px;color:var(--muted);margin-top:2px;text-align:center}
+.lot-actions{display:flex;flex-direction:column;gap:5px}
+.edit-form{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:none}
+.edit-form.open{display:block}
+.edit-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+
+.tote-table{width:100%;border-collapse:collapse;margin-top:8px}
+.tote-table th{text-align:left;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:var(--gold);padding:9px 11px;border-bottom:1px solid var(--border2);background:var(--bg3)}
+.tote-table td{padding:9px 11px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:top}
+.tote-table tr:last-child td{border-bottom:none}
+.tote-table tr:hover td{background:rgba(255,255,255,0.02)}
+.lot-range{font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--gold);letter-spacing:1px}
+.lot-pills{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.lot-pill{font-size:9px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:1px 5px;color:var(--muted2)}
+
+.unsold-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:11px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.unsold-info{flex:1}
+.unsold-info strong{font-size:13px;display:block;margin-bottom:2px}
+.unsold-info span{font-size:11px;color:var(--muted2)}
+
+.history-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:13px;margin-bottom:9px}
+.history-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;gap:10px}
+.auction-tag{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(201,168,76,0.08);color:var(--gold);border:1px solid rgba(201,168,76,0.2);display:inline-block;margin:2px}
+
+.search-bar{position:relative;margin-bottom:12px}
+.search-bar input{padding-left:34px}
+.search-bar::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+
+.empty{text-align:center;padding:36px 20px;color:var(--muted)}
+.empty-icon{font-size:38px;display:block;margin-bottom:10px}
+.empty p{font-size:13px}
+
+hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
+
+.auction-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.auction-bar label{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+
+.steps-row{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.step-item{flex:1;padding:9px 5px;text-align:center;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-right:1px solid var(--border);background:var(--bg2);transition:all 0.3s}
+.step-item:last-child{border-right:none}
+.step-item.active{background:rgba(201,168,76,0.07);color:var(--gold)}
+.step-item.done{background:rgba(82,183,136,0.05);color:var(--green)}
+.step-num{display:block;font-family:'Bebas Neue',sans-serif;font-size:18px;margin-bottom:1px}
+
+.sync-bar{background:rgba(74,158,218,0.08);border:1px solid rgba(74,158,218,0.2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:12px;color:var(--blue)}
+.sync-bar.success{background:rgba(82,183,136,0.08);border-color:rgba(82,183,136,0.2);color:var(--green)}
+.sync-bar.error{background:rgba(224,82,82,0.08);border-color:rgba(224,82,82,0.2);color:var(--red)}
+
+.notif{position:fixed;bottom:22px;right:22px;background:var(--bg2);border:1px solid var(--green);border-radius:10px;padding:13px 18px;font-size:13px;color:var(--green);z-index:1000;transform:translateY(100px);opacity:0;transition:all 0.3s;max-width:300px}
+.notif.show{transform:translateY(0);opacity:1}
+.notif.error{border-color:var(--red);color:var(--red)}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:999px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <span class="icon">🏀</span>
+    <h3>Auction Manager Pro</h3>
+    <p>Sign in with your Google account to access your auction data from any computer.</p>
+    <div id="google-btn-container"></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header" id="main-header" style="display:none">
+  <div class="header-brand">
+    <h1>Auction Manager Pro</h1>
+    <p>Jersey Auction System</p>
+  </div>
+  <div class="header-right">
+    <div class="api-field">
+      <label>API Key</label>
+      <input type="password" id="api-key" placeholder="sk-ant-..." />
+    </div>
+    <div class="user-pill" onclick="signOut()">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <span class="user-name" id="user-name">Signing in...</span>
+    </div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs" id="main-tabs" style="display:none">
+  <button class="tab-btn active" onclick="switchTab('processor',this)">📁 Processor</button>
+  <button class="tab-btn" onclick="switchTab('totes',this)">🗂️ Totes</button>
+  <button class="tab-btn" onclick="switchTab('unsold',this)">📦 Unsold</button>
+  <button class="tab-btn" onclick="switchTab('history',this)">🏷️ History</button>
+</div>
+
+<div class="main" id="main-content" style="display:none">
+
+<!-- TAB 1: PROCESSOR -->
+<div class="tab-panel active" id="tab-processor">
+  <div class="steps-row">
+    <div class="step-item active" id="ps1"><span class="step-num">1</span>Setup</div>
+    <div class="step-item" id="ps2"><span class="step-num">2</span>Upload</div>
+    <div class="step-item" id="ps3"><span class="step-num">3</span>Analyze</div>
+    <div class="step-item" id="ps4"><span class="step-num">4</span>Review</div>
+    <div class="step-item" id="ps5"><span class="step-num">5</span>Export</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙️ Tote Setup</div>
+    <div class="row">
+      <div class="field">
+        <label class="field-label">Auction Name</label>
+        <input type="text" id="auction-name" placeholder="e.g. Auction 1" />
+      </div>
+      <div class="field">
+        <label class="field-label">Tote Label</label>
+        <input type="text" id="tote-label" placeholder="e.g. Tote A" />
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">Starting Lot Number</label>
+      <input type="number" id="start-lot" value="1" min="1" style="max-width:90px" />
+      <p class="hint">Last processed lot: <span id="last-lot-hint">—</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📸 Upload Photos</div>
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" multiple accept="image/*" />
+      <span class="drop-icon">🏀</span>
+      <h3>Drop tote photos here</h3>
+      <p>AI will identify and group them by jersey</p>
+    </div>
+    <div class="file-info" id="file-info"></div>
+    <button class="btn btn-red btn-sm" id="clear-photos-btn" style="display:none;margin-top:10px" onclick="clearPhotos()">🗑️ Clear Photos</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🤖 AI Processing</div>
+    <div class="progress-wrap"><div class="progress-fill" id="prog-fill"></div></div>
+    <div class="progress-text" id="prog-text">Ready</div>
+    <div class="log" id="proc-log"></div>
+    <button class="btn btn-gold btn-full" id="process-btn" disabled>⚡ Analyze &amp; Process Photos</button>
+  </div>
+
+  <div id="results-section" style="display:none">
+    <div class="card">
+      <div class="card-title">✏️ Review &amp; Edit Lots</div>
+      <p style="font-size:12px;color:var(--muted2);margin-bottom:12px">Click Edit on any lot to fix mistakes before exporting.</p>
+      <div class="lots-grid" id="lots-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⬇️ Export</div>
+      <div id="sheets-sync-status"></div>
+      <div class="row">
+        <button class="btn btn-green btn-full" id="dl-zip-btn">📦 Download Photos ZIP</button>
+        <button class="btn btn-blue btn-full" id="dl-csv-btn">📊 Download CSV</button>
+      </div>
+      <button class="btn btn-full" id="sync-sheets-btn" style="background:linear-gradient(135deg,#1a5c2a,#34a853);color:#fff;margin-top:8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
+        Save to Google Sheets &amp; Drive
+      </button>
+      <p class="hint" style="margin-top:8px">This will create/update a sheet in your Google Drive for this auction.</p>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: TOTES -->
+<div class="tab-panel" id="tab-totes">
+  <div class="card">
+    <div class="card-title">🗂️ Tote Tracker</div>
+    <div class="auction-bar">
+      <label>Filter</label>
+      <select id="tote-filter" onchange="renderTotes()">
+        <option value="all">All Auctions</option>
+      </select>
+    </div>
+    <div id="tote-content"><div class="empty"><span class="empty-icon">🗂️</span><p>No totes yet.</p></div></div>
+  </div>
+</div>
+
+<!-- TAB 3: UNSOLD -->
+<div class="tab-panel" id="tab-unsold">
+  <div class="card">
+    <div class="card-title">📋 Upload Sold Results</div>
+    <p style="font-size:13px;color:var(--muted2);margin-bottom:12px">Upload your sold results CSV. The app finds what didn't sell and carries it forward.</p>
+    <div class="field">
+      <label class="field-label">Select Auction</label>
+      <select id="unsold-auction-sel"><option value="">— Select —</option></select>
+    </div>
+    <div class="drop-zone" id="sold-dz" style="padding:22px">
+      <input type="file" id="sold-fi" accept=".csv,.txt" />
+      <span class="drop-icon" style="font-size:26px">📄</span>
+      <h3 style="font-size:14px">Drop sold results CSV here</h3>
+      <p>App will match sold lot numbers against your lots</p>
+    </div>
+    <div class="file-info" id="sold-info"></div>
+    <button class="btn btn-gold btn-full" id="find-unsold-btn" disabled style="margin-top:8px">🔍 Find Unsold Lots</button>
+  </div>
+  <div id="unsold-results" style="display:none">
+    <div class="card">
+      <div class="card-title">📦 Unsold Lots</div>
+      <div id="unsold-list"></div>
+      <button class="btn btn-gold btn-full" id="carry-btn" style="margin-top:10px">➡️ Carry Forward to Next Auction</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">🔄 Pending Carry-Forwards</div>
+    <div id="pending-cf"><div class="empty"><span class="empty-icon">✅</span><p>None pending.</p></div></div>
+  </div>
+</div>
+
+<!-- TAB 4: HISTORY -->
+<div class="tab-panel" id="tab-history">
+  <div class="card">
+    <div class="card-title">🏷️ Full Jersey History</div>
+    <div class="search-bar">
+      <input type="text" id="hist-search" placeholder="Search player, team, lot #..." oninput="renderHistory()" />
+    </div>
+    <div id="hist-content"><div class="empty"><span class="empty-icon">🏀</span><p>No history yet.</p></div></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+<div class="notif" id="notif"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const CLIENT_ID = '580017475226-n9t1nhl3jf2eqk3jcdfepc2va1tqlf57.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const REDIRECT_URI = 'https://crnicbros.github.io/auction-manager/';
+const STORE_KEY = 'auction_mgr_v2';
+
+// ============================================================
+// STATE
+// ============================================================
+function loadState(){try{const s=localStorage.getItem(STORE_KEY);return s?JSON.parse(s):{lots:[],totes:[],carryForward:[],sheetIds:{}};}catch(e){return{lots:[],totes:[],carryForward:[],sheetIds:{}};}}
+function saveState(){try{localStorage.setItem(STORE_KEY,JSON.stringify(state));}catch(e){}}
+let state=loadState();
+let accessToken=null;
+let userInfo=null;
+let allFiles=[];
+let processedLots=[];
+let currentZip=null;
+let currentCsv='';
+let unsoldLots=[];
+
+// Restore API key
+const savedKey=localStorage.getItem('auction_api_key');
+if(savedKey) document.getElementById('api-key').value=savedKey;
+document.getElementById('api-key').addEventListener('change',e=>localStorage.setItem('auction_api_key',e.target.value.trim()));
+
+// ============================================================
+// GOOGLE SIGN IN
+// ============================================================
+function initGoogle() {
+  if (typeof google === 'undefined') {
+    setTimeout(initGoogle, 100);
+    return;
+  }
+
+  // Check if we have a saved token
+  const savedToken = sessionStorage.getItem('g_access_token');
+  const savedUser = sessionStorage.getItem('g_user');
+  if (savedToken && savedUser) {
+    accessToken = savedToken;
+    userInfo = JSON.parse(savedUser);
+    showApp();
+    return;
+  }
+
+  // Use token client directly — more reliable than id.initialize for hosted pages
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (tokenResponse) => {
+      if (tokenResponse.error) {
+        alert('Sign in failed: ' + tokenResponse.error);
+        return;
+      }
+      accessToken = tokenResponse.access_token;
+      sessionStorage.setItem('g_access_token', accessToken);
+      // Fetch user info
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      }).then(r => r.json()).then(info => {
+        userInfo = { name: info.name, email: info.email };
+        sessionStorage.setItem('g_user', JSON.stringify(userInfo));
+        showApp();
+      });
+    }
+  });
+
+  // Replace button with custom one
+  const container = document.getElementById('google-btn-container');
+  container.innerHTML = '<button onclick="window._tokenClient.requestAccessToken({prompt: \'consent\'})" style="background:#4285f4;color:#fff;border:none;border-radius:8px;padding:12px 28px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;margin:0 auto"><svg width=\'20\' height=\'20\' viewBox=\'0 0 48 48\'><path fill=\'#fff\' d=\'M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z\'/></svg>Sign in with Google</button>';
+  window._tokenClient = tokenClient;
+}
+window.onload = initGoogle;
+
+function handleCredential(response){
+  // Decode JWT to get user info
+  const payload=JSON.parse(atob(response.credential.split('.')[1]));
+  userInfo={name:payload.name,email:payload.email,picture:payload.picture};
+  sessionStorage.setItem('g_user',JSON.stringify(userInfo));
+
+  // Get access token for API calls
+  const client=google.accounts.oauth2.initTokenClient({
+    client_id:CLIENT_ID,
+    scope:SCOPES,
+    callback:(tokenResponse)=>{
+      if(tokenResponse.error){notify('Google auth error: '+tokenResponse.error,true);return;}
+      accessToken=tokenResponse.access_token;
+      sessionStorage.setItem('g_access_token',accessToken);
+      showApp();
+    }
+  });
+  client.requestAccessToken({prompt:''});
+}
+
+function showApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-header').style.display='flex';
+  document.getElementById('main-tabs').style.display='flex';
+  document.getElementById('main-content').style.display='block';
+  if(userInfo){
+    document.getElementById('user-name').textContent=userInfo.name||userInfo.email;
+    document.getElementById('user-avatar').textContent=(userInfo.name||'?')[0].toUpperCase();
+  }
+  updateLastLotHint();
+  notify('Signed in successfully!');
+}
+
+function signOut(){
+  google.accounts.id.disableAutoSelect();
+  sessionStorage.removeItem('g_access_token');
+  sessionStorage.removeItem('g_user');
+  accessToken=null;userInfo=null;
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('main-header').style.display='none';
+  document.getElementById('main-tabs').style.display='none';
+  document.getElementById('main-content').style.display='none';
+}
+
+// ============================================================
+// GOOGLE SHEETS & DRIVE
+// ============================================================
+async function gapi(method,url,body){
+  const opts={method,headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'}};
+  if(body)opts.body=JSON.stringify(body);
+  const r=await fetch(url,opts);
+  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Google API error');}
+  return r.json();
+}
+
+async function gapiUpload(metadata,blob){
+  const form=new FormData();
+  form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+  form.append('file',blob);
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+    method:'POST',headers:{'Authorization':'Bearer '+accessToken},body:form
+  });
+  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Upload error');}
+  return r.json();
+}
+
+async function findOrCreateFolder(name,parentId){
+  // Search for existing folder
+  const q=`name='${name}' and mimeType='application/vnd.google-apps.folder'${parentId?` and '${parentId}' in parents`:''}  and trashed=false`;
+  const res=await gapi('GET',`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`);
+  if(res.files&&res.files.length>0)return res.files[0].id;
+  // Create it
+  const body={name,mimeType:'application/vnd.google-apps.folder'};
+  if(parentId)body.parents=[parentId];
+  const created=await gapi('POST','https://www.googleapis.com/drive/v3/files',body);
+  return created.id;
+}
+
+async function syncToGoogle(auctionName,toteLabel,lots){
+  const status=document.getElementById('sheets-sync-status');
+  status.innerHTML=`<div class="sync-bar">⏳ Syncing to Google Sheets & Drive...</div>`;
+
+  try {
+    // 1. Find/create root folder
+    const rootId=await findOrCreateFolder('Auction Manager Pro');
+    // 2. Find/create auction folder
+    const auctionId=await findOrCreateFolder(auctionName,rootId);
+    // 3. Find/create tote folder
+    const toteId=await findOrCreateFolder(toteLabel,auctionId);
+
+    // 4. Upload photos to Drive
+    plog('📤 Uploading photos to Google Drive...','');
+    if(currentZip){
+      const zipData=await currentZip.generateAsync({type:'arraybuffer'});
+      const jszip=new JSZip();
+      const loaded=await jszip.loadAsync(zipData);
+      let uploaded=0;
+      const fileNames=Object.keys(loaded.files);
+      for(const fname of fileNames){
+        const fileData=await loaded.files[fname].async('blob');
+        await gapiUpload({name:fname,parents:[toteId]},fileData);
+        uploaded++;
+        plog(`  ✓ Uploaded ${fname}`,'ok');
+      }
+    }
+
+    // 5. Find or create Google Sheet for this auction
+    let sheetId=state.sheetIds?.[auctionName];
+    if(!sheetId){
+      // Create new sheet
+      const sheet=await gapi('POST','https://www.googleapis.com/v4/spreadsheets',{
+        properties:{title:`${auctionName} — Auction Lots`},
+        sheets:[{properties:{title:'Lots'}},{properties:{title:'Tote Tracker'}},{properties:{title:'Unsold'}}]
+      });
+      sheetId=sheet.spreadsheetId;
+      state.sheetIds=state.sheetIds||{};
+      state.sheetIds[auctionName]=sheetId;
+      saveState();
+      // Move sheet to auction folder
+      await gapi('PATCH',`https://www.googleapis.com/drive/v3/files/${sheetId}?addParents=${auctionId}&removeParents=root`,{});
+      // Add headers
+      await gapi('PUT',`https://www.googleapis.com/v4/spreadsheets/${sheetId}/values/Lots!A1:D1?valueInputOption=RAW`,{values:[['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']]});
+    }
+
+    // 6. Append lot rows
+    const rows=lots.map(l=>[l.lotNum,l.title,l.description,1]);
+    await gapi('POST',`https://www.googleapis.com/v4/spreadsheets/${sheetId}/values/Lots!A:D:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,{values:rows});
+
+    // 7. Update Tote Tracker sheet
+    const toteRows=state.totes.map(t=>[t.auctionName,t.toteLabel,Math.min(...t.lotNums),Math.max(...t.lotNums),t.lotNums.length,t.date]);
+    await gapi('PUT',`https://www.googleapis.com/v4/spreadsheets/${sheetId}/values/Tote Tracker!A1:F1?valueInputOption=RAW`,{values:[['AUCTION','TOTE','FIRST LOT','LAST LOT','COUNT','DATE']]});
+    if(toteRows.length) await gapi('POST',`https://www.googleapis.com/v4/spreadsheets/${sheetId}/values/Tote Tracker!A2:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,{values:toteRows});
+
+    status.innerHTML=`<div class="sync-bar success">✅ Synced! <a href="https://docs.google.com/spreadsheets/d/${sheetId}" target="_blank" style="color:var(--green);margin-left:8px">Open Google Sheet →</a></div>`;
+    notify('Synced to Google Sheets & Drive!');
+  } catch(e) {
+    status.innerHTML=`<div class="sync-bar error">❌ Sync failed: ${e.message}</div>`;
+    notify('Sync failed: '+e.message,true);
+  }
+}
+
+// ============================================================
+// NOTIFICATIONS & TABS
+// ============================================================
+function notify(msg,isError=false){
+  const n=document.getElementById('notif');
+  n.textContent=msg;n.className='notif show'+(isError?' error':'');
+  setTimeout(()=>n.className='notif',3500);
+}
+
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='totes')renderTotes();
+  if(name==='unsold')renderUnsoldTab();
+  if(name==='history')renderHistory();
+}
+
+// ============================================================
+// PROCESSOR
+// ============================================================
+function updateLastLotHint(){
+  if(!state.lots.length){document.getElementById('last-lot-hint').textContent='—';return;}
+  const max=Math.max(...state.lots.map(l=>l.lotNum));
+  document.getElementById('last-lot-hint').textContent=max;
+  document.getElementById('start-lot').value=max+1;
+}
+
+const dz=document.getElementById('drop-zone');
+const fi=document.getElementById('file-input');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');handleFiles([...e.dataTransfer.files])});
+fi.addEventListener('change',()=>handleFiles([...fi.files]));
+
+function handleFiles(files){
+  allFiles=files.filter(f=>f.type.startsWith('image/')).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+  const n=allFiles.length;
+  document.getElementById('file-info').textContent=n?`${n} photos → ~${Math.floor(n/4)} lots`:'';
+  document.getElementById('process-btn').disabled=n===0;
+  document.getElementById('clear-photos-btn').style.display=n?'inline-flex':'none';
+  setStep(2);
+}
+
+function clearPhotos(){
+  allFiles=[];
+  document.getElementById('file-info').textContent='';
+  document.getElementById('file-input').value='';
+  document.getElementById('process-btn').disabled=true;
+  document.getElementById('clear-photos-btn').style.display='none';
+  document.getElementById('results-section').style.display='none';
+  document.getElementById('proc-log').innerHTML='';
+  document.getElementById('proc-log').style.display='none';
+  document.getElementById('prog-fill').style.width='0%';
+  document.getElementById('prog-text').textContent='Ready';
+  processedLots=[];currentZip=null;currentCsv='';
+  setStep(1);
+  notify('Photos cleared!');
+}
+
+function setStep(n){for(let i=1;i<=5;i++){const el=document.getElementById('ps'+i);el.className='step-item'+(i<n?' done':i===n?' active':'');}}
+
+function plog(msg,type=''){const log=document.getElementById('proc-log');log.style.display='block';const d=document.createElement('div');d.className=type;d.textContent=msg;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+function setProgress(pct,msg){document.getElementById('prog-fill').style.width=pct+'%';document.getElementById('prog-text').textContent=msg;}
+
+function readOrientation(file){return new Promise(resolve=>{const r=new FileReader();r.onload=e=>{const v=new DataView(e.target.result);if(v.getUint16(0,false)!==0xFFD8)return resolve(1);let off=2;while(off<v.byteLength){const mk=v.getUint16(off,false);off+=2;if(mk===0xFFE1){if(v.getUint32(off+2,false)!==0x45786966)return resolve(1);const le=v.getUint16(off+8,false)===0x4949;off+=10;const tags=v.getUint16(off,le);off+=2;for(let i=0;i<tags;i++)if(v.getUint16(off+i*12,le)===0x0112)return resolve(v.getUint16(off+i*12+8,le));}else if((mk&0xFF00)!==0xFF00)break;else off+=v.getUint16(off,false);}resolve(1);};r.readAsArrayBuffer(file.slice(0,65536));})}
+function fixOrientation(img,ori){const c=document.createElement('canvas');const ctx=c.getContext('2d');const w=img.naturalWidth,h=img.naturalHeight;if([5,6,7,8].includes(ori)){c.width=h;c.height=w;}else{c.width=w;c.height=h;}switch(ori){case 2:ctx.transform(-1,0,0,1,w,0);break;case 3:ctx.transform(-1,0,0,-1,w,h);break;case 4:ctx.transform(1,0,0,-1,0,h);break;case 5:ctx.transform(0,1,1,0,0,0);break;case 6:ctx.transform(0,1,-1,0,h,0);break;case 7:ctx.transform(0,-1,-1,0,h,w);break;case 8:ctx.transform(0,-1,1,0,0,w);break;}ctx.drawImage(img,0,0);return c;}
+function fileToBase64(file,maxSize=800){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;if(w>maxSize||h>maxSize){if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}else{w=Math.round(w*maxSize/h);h=maxSize;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.82).split(',')[1]);};img.onerror=rej;img.src=url;});}
+function loadImg(file){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=url;});}
+async function correctBlob(file){const ori=await readOrientation(file);if(ori===1)return file;const img=await loadImg(file);const canvas=fixOrientation(img,ori);URL.revokeObjectURL(img.src);return new Promise(res=>canvas.toBlob(res,'image/jpeg',0.92));}
+
+async function callClaude(files,apiKey){
+  const contents=[];
+  for(let i=0;i<files.length;i++){
+    const b64=await fileToBase64(files[i]);
+    contents.push({type:'image',source:{type:'base64',media_type:files[i].type||'image/jpeg',data:b64}});
+    contents.push({type:'text',text:`Image ${i}: "${files[i].name}"`});
+  }
+  contents.push({type:'text',text:`These are ${files.length} photos of the same sports jersey lot: back, signature, COA, front (may be slightly out of order). Identify the jersey and return JSON only, no markdown:\n{"player":"Full Name","team":"Team Name","title":"Player Name Signed Team Jersey","description":"Player Name Signed Team Color Jersey w/COA","indices":[back,sig,coa,front]}\nUse 0-${files.length-1} for indices.`});
+  let raw='';
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:contents}]})});
+    raw=await r.text();
+    const data=JSON.parse(raw);
+    if(!r.ok)throw new Error(data.error?.message||`HTTP ${r.status}`);
+    const text=data.content.map(c=>c.text||'').join('');
+    return JSON.parse(text.replace(/```json|```/g,'').trim());
+  }catch(e){throw new Error(`${e.message}${raw?' | '+raw.slice(0,120):''}`);}
+}
+
+document.getElementById('process-btn').addEventListener('click',async()=>{
+  const apiKey=document.getElementById('api-key').value.trim();
+  if(!apiKey){notify('Enter your Anthropic API key.',true);return;}
+  const auctionName=document.getElementById('auction-name').value.trim();
+  const toteLabel=document.getElementById('tote-label').value.trim();
+  if(!auctionName||!toteLabel){notify('Fill in Auction Name and Tote Label.',true);return;}
+  if(!allFiles.length)return;
+
+  document.getElementById('process-btn').disabled=true;
+  document.getElementById('proc-log').innerHTML='';
+  document.getElementById('proc-log').style.display='block';
+  document.getElementById('results-section').style.display='none';
+  setStep(3);
+
+  const startLot=parseInt(document.getElementById('start-lot').value)||1;
+  processedLots=[];
+  const zip=new JSZip();
+  const toteKey=`${auctionName}__${toteLabel}`;
+  const lotNums=[];
+
+  // Include carry-forwards for this tote
+  const cfForTote=state.carryForward.filter(c=>c.toteLabel===toteLabel);
+  if(cfForTote.length) plog(`📦 Including ${cfForTote.length} carry-forward items from previous auction`,'warn');
+
+  try{
+    const totalLots=Math.floor(allFiles.length/4);
+    let lotCounter=startLot;
+
+    // First add carry-forwards
+    for(const cf of cfForTote){
+      const lot={...cf,id:`lot_${Date.now()}_cf_${cf.originalLotNum}`,lotNum:lotCounter,auctionName,toteLabel,toteKey,
+        history:[...(cf.history||[]),{auction:auctionName,tote:toteLabel,lotNum:lotCounter,date:new Date().toLocaleDateString()}],soldStatus:undefined};
+      processedLots.push(lot);lotNums.push(lotCounter);lotCounter++;
+      plog(`↩️ Lot ${lot.lotNum}: ${lot.title} (carried forward)`,'warn');
+    }
+
+    // Remove used carry-forwards
+    state.carryForward=state.carryForward.filter(c=>c.toteLabel!==toteLabel);
+
+    // Process new photos
+    for(let i=0;i<totalLots;i++){
+      const lotNum=lotCounter++;
+      const batchFiles=allFiles.slice(i*4,i*4+4);
+      setProgress(Math.round((i/totalLots)*70),`Analyzing lot ${lotNum} (${i+1}/${totalLots})...`);
+      plog(`🔍 Lot ${lotNum}: analyzing...`);
+
+      let lotData;
+      try{lotData=await callClaude(batchFiles,apiKey);}
+      catch(e){plog(`⚠ Lot ${lotNum} AI error: ${e.message}`,'warn');lotData={player:'Unknown',team:'Unknown',title:'Signed Jersey',description:'Signed Jersey w/COA',indices:[0,1,2,3]};}
+
+      const thumbUrls=[];
+      for(let p=0;p<4;p++){
+        const srcIdx=lotData.indices[p]??p;
+        const file=batchFiles[srcIdx]??batchFiles[p];
+        if(!file){thumbUrls.push('');continue;}
+        const blob=await correctBlob(file);
+        zip.file(`${lotNum}-${p+1}.jpg`,blob);
+        thumbUrls.push(URL.createObjectURL(blob));
+      }
+
+      const lot={id:`lot_${Date.now()}_${i}`,lotNum,auctionName,toteLabel,toteKey,
+        player:lotData.player,team:lotData.team,title:lotData.title,description:lotData.description,
+        thumbUrls,photoLabels:['Back','Signature','COA','Front'],
+        history:[{auction:auctionName,tote:toteLabel,lotNum,date:new Date().toLocaleDateString()}],sold:false};
+      processedLots.push(lot);lotNums.push(lotNum);
+      plog(`✓ Lot ${lotNum}: ${lotData.player} — ${lotData.team}`,'ok');
+
+      if(i<totalLots-1){setProgress(Math.round(((i+0.8)/totalLots)*70),'Pausing...');await new Promise(r=>setTimeout(r,5000));}
+    }
+
+    // Save state
+    state.lots=state.lots.filter(l=>l.toteKey!==toteKey);
+    state.lots.push(...processedLots);
+    state.totes=state.totes.filter(t=>t.toteKey!==toteKey);
+    state.totes.push({toteKey,auctionName,toteLabel,lotNums,date:new Date().toLocaleDateString()});
+    saveState();
+
+    setProgress(90,'Building ZIP...');
+    currentZip=zip;
+    currentZip._built=await zip.generateAsync({type:'blob'});
+
+    const rows=[['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
+    processedLots.forEach(l=>rows.push([l.lotNum,l.title,l.description,1]));
+    currentCsv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+
+    setProgress(100,`✅ ${processedLots.length} lots processed!`);
+    plog(`\n✅ Done: ${processedLots.length} lots — ${auctionName} · ${toteLabel}`,'ok');
+
+    renderLotsGrid();
+    document.getElementById('results-section').style.display='block';
+    updateLastLotHint();setStep(4);
+    notify(`✅ ${processedLots.length} lots ready!`);
+  }catch(e){
+    plog(`❌ ${e.message}`,'err');setProgress(0,'Error');notify('Failed: '+e.message,true);
+  }
+  document.getElementById('process-btn').disabled=false;
+});
+
+function renderLotsGrid(){
+  const grid=document.getElementById('lots-grid');grid.innerHTML='';
+  processedLots.forEach((lot,idx)=>{
+    const div=document.createElement('div');div.className='lot-card';div.id=`lc_${idx}`;
+    const cfBadge=lot.history&&lot.history.length>1?'<span class="badge badge-purple">Carried Forward</span>':'';
+    div.innerHTML=`
+      <div class="lot-num" style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--gold);line-height:1;text-align:center;padding-right:12px;border-right:1px solid var(--border);min-width:50px">${lot.lotNum}</div>
+      <div style="flex:1;min-width:0">
+        <div class="lot-title-display" id="lt_${idx}">${lot.title}</div>
+        <div class="lot-desc-display" id="ld_${idx}">${lot.description}</div>
+        <div class="lot-meta"><span class="badge badge-gold">${lot.auctionName}</span><span class="badge badge-blue">${lot.toteLabel}</span>${cfBadge}</div>
+
+        <div id="photos_${idx}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0">
+          ${(lot.thumbUrls||[]).map((url,p)=>`
+            <div id="slot_${idx}_${p}" style="background:var(--bg4);border:2px dashed var(--border2);border-radius:8px;padding:5px;text-align:center;cursor:grab;transition:all 0.2s;position:relative"
+              draggable="true"
+              ondragstart="photoDragStart(event,${idx},${p})"
+              ondragover="photoDragOver(event)"
+              ondragleave="photoDragLeave(event)"
+              ondrop="photoDrop(event,${idx},${p})">
+              ${url?`<img src="${url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:5px;display:block;pointer-events:none" />`:'<div style="width:100%;aspect-ratio:1;background:var(--bg3);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>'}
+              <div style="font-size:10px;color:var(--gold);font-weight:600;margin-top:3px">${lot.lotNum}-${p+1}</div>
+              <div style="font-size:9px;color:var(--muted)">${lot.photoLabels[p]}</div>
+              <div style="display:flex;justify-content:center;gap:3px;margin-top:3px">
+                <button onclick="rotatePhoto(${idx},${p},-90)" title="Rotate Left" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--muted2);cursor:pointer;padding:2px 5px;font-size:11px">↺</button>
+                <button onclick="rotatePhoto(${idx},${p},90)" title="Rotate Right" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--muted2);cursor:pointer;padding:2px 5px;font-size:11px">↻</button>
+              </div>
+            </div>`).join('')}
+        </div>
+        <p style="font-size:10px;color:var(--muted);margin-bottom:8px">⠿ Drag photos to reorder · ↺↻ to rotate</p>
+
+        <div class="edit-form" id="ef_${idx}">
+          <div class="edit-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="field"><label class="field-label">Player</label><input type="text" id="ep_${idx}" value="${lot.player||''}"/></div>
+            <div class="field"><label class="field-label">Team</label><input type="text" id="et_${idx}" value="${lot.team||''}"/></div>
+          </div>
+          <div class="field"><label class="field-label">Title</label><input type="text" id="etitle_${idx}" value="${lot.title||''}"/></div>
+          <div class="field"><label class="field-label">Description</label><input type="text" id="edesc_${idx}" value="${lot.description||''}"/></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-green btn-sm" onclick="saveLotEdit(${idx})">✓ Save</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleEdit(${idx})">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div class="lot-actions" style="display:flex;flex-direction:column;gap:5px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleEdit(${idx})">✏️ Edit</button>
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+
+// ---- DRAG & DROP PHOTOS ----
+let dragSrc = null; // {lotIdx, photoIdx}
+
+function photoDragStart(e, lotIdx, photoIdx) {
+  dragSrc = {lotIdx, photoIdx};
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(()=>{
+    const el = document.getElementById(`slot_${lotIdx}_${photoIdx}`);
+    if(el) el.style.opacity = '0.4';
+  }, 0);
+}
+
+function photoDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.style.borderColor = 'var(--gold)';
+  e.currentTarget.style.background = 'rgba(201,168,76,0.08)';
+}
+
+function photoDragLeave(e) {
+  e.currentTarget.style.borderColor = 'var(--border2)';
+  e.currentTarget.style.background = 'var(--bg4)';
+}
+
+function photoDrop(e, toLotIdx, toPhotoIdx) {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--border2)';
+  e.currentTarget.style.background = 'var(--bg4)';
+  if(!dragSrc) return;
+
+  const {lotIdx: fromLotIdx, photoIdx: fromPhotoIdx} = dragSrc;
+  dragSrc = null;
+
+  // Reset opacity
+  const srcEl = document.getElementById(`slot_${fromLotIdx}_${fromPhotoIdx}`);
+  if(srcEl) srcEl.style.opacity = '1';
+
+  if(fromLotIdx === toLotIdx && fromPhotoIdx === toPhotoIdx) return;
+
+  // Swap photos between the two slots
+  const fromLot = processedLots[fromLotIdx];
+  const toLot = processedLots[toLotIdx];
+
+  // Swap URLs and blobs
+  const tempUrl = fromLot.thumbUrls[fromPhotoIdx];
+  fromLot.thumbUrls[fromPhotoIdx] = toLot.thumbUrls[toPhotoIdx];
+  toLot.thumbUrls[toPhotoIdx] = tempUrl;
+
+  // Swap zip blobs if they exist
+  if(fromLot.photoBlobs && toLot.photoBlobs) {
+    const tempBlob = fromLot.photoBlobs[fromPhotoIdx];
+    fromLot.photoBlobs[fromPhotoIdx] = toLot.photoBlobs[toPhotoIdx];
+    toLot.photoBlobs[toPhotoIdx] = tempBlob;
+  }
+
+  // Re-render both affected lots
+  const affectedLots = [...new Set([fromLotIdx, toLotIdx])];
+  affectedLots.forEach(i => {
+    const oldCard = document.getElementById(`lc_${i}`);
+    if(oldCard) oldCard.remove();
+  });
+
+  // Re-insert updated lot cards
+  const grid = document.getElementById('lots-grid');
+  affectedLots.sort().forEach(i => {
+    const tempGrid = document.createElement('div');
+    const lot = processedLots[i];
+    // Temporarily render just this lot
+    const savedLots = processedLots;
+    processedLots = [lot];
+    const fakeGrid = document.createElement('div');
+    fakeGrid.id = 'lots-grid';
+    document.body.appendChild(fakeGrid);
+    renderSingleLot(lot, i, fakeGrid);
+    document.body.removeChild(fakeGrid);
+    processedLots = savedLots;
+  });
+
+  renderLotsGrid();
+  notify('Photos swapped!');
+}
+
+// ---- ROTATE PHOTO ----
+function rotatePhoto(lotIdx, photoIdx, degrees) {
+  const lot = processedLots[lotIdx];
+  const url = lot.thumbUrls[photoIdx];
+  if(!url) return;
+
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const rad = degrees * Math.PI / 180;
+
+    if(degrees === 90 || degrees === -90) {
+      canvas.width = img.height;
+      canvas.height = img.width;
+    } else {
+      canvas.width = img.width;
+      canvas.height = img.height;
+    }
+
+    ctx.translate(canvas.width/2, canvas.height/2);
+    ctx.rotate(rad);
+    ctx.drawImage(img, -img.width/2, -img.height/2);
+
+    canvas.toBlob(blob => {
+      const newUrl = URL.createObjectURL(blob);
+      lot.thumbUrls[photoIdx] = newUrl;
+
+      // Update the image in place without full re-render
+      const slotEl = document.getElementById(`slot_${lotIdx}_${photoIdx}`);
+      if(slotEl) {
+        const imgEl = slotEl.querySelector('img');
+        if(imgEl) imgEl.src = newUrl;
+      }
+      notify('Photo rotated!');
+    }, 'image/jpeg', 0.92);
+  };
+  img.src = url;
+}
+
+function toggleEdit(idx){const ef=document.getElementById(`ef_${idx}`);const card=document.getElementById(`lc_${idx}`);ef.classList.toggle('open');card.classList.toggle('editing',ef.classList.contains('open'));}
+
+function saveLotEdit(idx){
+  const lot=processedLots[idx];
+  lot.player=document.getElementById(`ep_${idx}`).value;
+  lot.team=document.getElementById(`et_${idx}`).value;
+  lot.title=document.getElementById(`etitle_${idx}`).value;
+  lot.description=document.getElementById(`edesc_${idx}`).value;
+  document.getElementById(`lt_${idx}`).textContent=lot.title;
+  document.getElementById(`ld_${idx}`).textContent=lot.description;
+  const si=state.lots.findIndex(l=>l.id===lot.id);
+  if(si>=0)Object.assign(state.lots[si],lot);
+  saveState();toggleEdit(idx);notify('Saved!');
+  const rows=[['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
+  processedLots.forEach(l=>rows.push([l.lotNum,l.title,l.description,1]));
+  currentCsv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+}
+
+document.getElementById('dl-zip-btn').addEventListener('click',()=>{
+  if(!currentZip?._built)return;
+  const a=document.createElement('a');a.href=URL.createObjectURL(currentZip._built);
+  a.download=`${document.getElementById('auction-name').value||'auction'}_${document.getElementById('tote-label').value||'tote'}_photos.zip`;
+  a.click();setStep(5);notify('Photos downloaded!');
+});
+
+document.getElementById('dl-csv-btn').addEventListener('click',()=>{
+  if(!currentCsv)return;
+  const blob=new Blob([currentCsv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${document.getElementById('auction-name').value||'auction'}_${document.getElementById('tote-label').value||'tote'}.csv`;
+  a.click();setStep(5);notify('CSV downloaded!');
+});
+
+document.getElementById('sync-sheets-btn').addEventListener('click',()=>{
+  if(!processedLots.length){notify('No lots to sync.',true);return;}
+  if(!accessToken){notify('Not signed in to Google.',true);return;}
+  syncToGoogle(document.getElementById('auction-name').value.trim(),document.getElementById('tote-label').value.trim(),processedLots);
+});
+
+// ============================================================
+// TOTE TRACKER
+// ============================================================
+function deleteTote(toteKey){
+  if(!confirm('Delete this tote and all its lots? This cannot be undone.')) return;
+  state.totes = state.totes.filter(t=>t.toteKey!==toteKey);
+  state.lots = state.lots.filter(l=>l.toteKey!==toteKey);
+  saveState();
+  renderTotes();
+  notify('Tote deleted.');
+}
+
+function renderTotes(){
+  const filter=document.getElementById('tote-filter').value||'all';
+  const auctions=[...new Set(state.totes.map(t=>t.auctionName))];
+  const sel=document.getElementById('tote-filter');
+  const cur=sel.value;
+  sel.innerHTML='<option value="all">All Auctions</option>'+auctions.map(a=>`<option value="${a}" ${a===cur?'selected':''}>${a}</option>`).join('');
+
+  const filtered=filter==='all'?state.totes:state.totes.filter(t=>t.auctionName===filter);
+  const el=document.getElementById('tote-content');
+  if(!filtered.length){el.innerHTML='<div class="empty"><span class="empty-icon">🗂️</span><p>No totes found.</p></div>';return;}
+
+  const byAuction={};
+  for(const t of filtered){if(!byAuction[t.auctionName])byAuction[t.auctionName]=[];byAuction[t.auctionName].push(t);}
+
+  el.innerHTML=Object.entries(byAuction).map(([auction,totes])=>`
+    <div style="margin-bottom:18px">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--text);margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--border)">${auction}</div>
+      <table class="tote-table"><thead><tr><th>Tote</th><th>Lots</th><th>#</th><th>Date</th><th></th></tr></thead><tbody>
+      ${totes.map(t=>`<tr><td><strong>${t.toteLabel}</strong></td><td><span class="lot-range">${Math.min(...t.lotNums)}–${Math.max(...t.lotNums)}</span><div class="lot-pills">${t.lotNums.map(n=>`<span class="lot-pill">${n}</span>`).join('')}</div></td><td>${t.lotNums.length}</td><td>${t.date}</td><td><button class="btn btn-red btn-sm" onclick="deleteTote('${t.toteKey}')">🗑️ Delete</button></td></tr>`).join('')}
+      </tbody></table>
+    </div>`).join('');
+}
+
+// ============================================================
+// UNSOLD MANAGER
+// ============================================================
+function renderUnsoldTab(){
+  const auctions=[...new Set(state.lots.map(l=>l.auctionName))];
+  const sel=document.getElementById('unsold-auction-sel');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Select —</option>'+auctions.map(a=>`<option value="${a}" ${a===cur?'selected':''}>${a}</option>`).join('');
+  renderPendingCF();
+}
+
+const soldDz=document.getElementById('sold-dz');
+const soldFi=document.getElementById('sold-fi');
+let soldFile=null;
+soldDz.addEventListener('dragover',e=>{e.preventDefault();soldDz.classList.add('over')});
+soldDz.addEventListener('dragleave',()=>soldDz.classList.remove('over'));
+soldDz.addEventListener('drop',e=>{e.preventDefault();soldDz.classList.remove('over');setSoldFile(e.dataTransfer.files[0])});
+soldFi.addEventListener('change',()=>setSoldFile(soldFi.files[0]));
+function setSoldFile(f){soldFile=f;document.getElementById('sold-info').textContent=f?`📄 ${f.name}`:'';document.getElementById('find-unsold-btn').disabled=!f;}
+
+document.getElementById('find-unsold-btn').addEventListener('click',()=>{
+  const auction=document.getElementById('unsold-auction-sel').value;
+  if(!auction||!soldFile){notify('Select an auction and upload a file.',true);return;}
+  const r=new FileReader();
+  r.onload=e=>{
+    const text=e.target.result;
+    const soldNums=new Set();
+    text.split('\n').forEach(line=>{const nums=line.match(/\b\d+\b/g);if(nums)nums.forEach(n=>soldNums.add(parseInt(n)));});
+    const aLots=state.lots.filter(l=>l.auctionName===auction);
+    unsoldLots=aLots.filter(l=>!soldNums.has(l.lotNum));
+    renderUnsoldResults(unsoldLots,aLots.length);
+  };
+  r.readAsText(soldFile);
+});
+
+function renderUnsoldResults(unsold,total){
+  document.getElementById('unsold-results').style.display='block';
+  const list=document.getElementById('unsold-list');
+  if(!unsold.length){list.innerHTML='<div class="empty"><span class="empty-icon">🎉</span><p>Everything sold!</p></div>';document.getElementById('carry-btn').style.display='none';return;}
+  document.getElementById('carry-btn').style.display='block';
+  list.innerHTML=`<p style="font-size:12px;color:var(--muted2);margin-bottom:10px"><strong style="color:var(--red)">${unsold.length} unsold</strong> out of ${total} lots</p>`+
+    unsold.map(l=>`<div class="unsold-item"><div class="unsold-info"><strong>Lot ${l.lotNum} — ${l.title}</strong><span>${l.auctionName} · ${l.toteLabel}</span></div><span class="badge badge-blue">${l.toteLabel}</span></div>`).join('');
+}
+
+document.getElementById('carry-btn').addEventListener('click',()=>{
+  for(const lot of unsoldLots){
+    if(!state.carryForward.find(c=>c.id===lot.id)){
+      state.carryForward.push({...lot,originalAuction:lot.auctionName,originalLotNum:lot.lotNum,carriedDate:new Date().toLocaleDateString()});
+    }
+  }
+  saveState();renderPendingCF();
+  document.getElementById('unsold-results').style.display='none';
+  notify(`${unsoldLots.length} items queued for carry-forward!`);
+  unsoldLots=[];
+});
+
+function renderPendingCF(){
+  const el=document.getElementById('pending-cf');
+  if(!state.carryForward.length){el.innerHTML='<div class="empty"><span class="empty-icon">✅</span><p>None pending.</p></div>';return;}
+  const byTote={};
+  for(const item of state.carryForward){if(!byTote[item.toteLabel])byTote[item.toteLabel]=[];byTote[item.toteLabel].push(item);}
+  el.innerHTML=Object.entries(byTote).map(([tote,items])=>`
+    <div style="margin-bottom:12px">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--gold);margin-bottom:6px">${tote} <span style="font-size:11px;color:var(--muted);font-family:'Barlow',sans-serif;letter-spacing:0">(${items.length})</span></div>
+      ${items.map(item=>`<div class="unsold-item"><div class="unsold-info"><strong>${item.title}</strong><span>From: ${item.originalAuction} Lot ${item.originalLotNum} · ${item.carriedDate}</span></div><button class="btn btn-red btn-sm" onclick="removeCF('${item.id}')">Remove</button></div>`).join('')}
+    </div>`).join('');
+}
+
+function removeCF(id){state.carryForward=state.carryForward.filter(c=>c.id!==id);saveState();renderPendingCF();notify('Removed.');}
+
+// ============================================================
+// HISTORY
+// ============================================================
+function renderHistory(){
+  const q=(document.getElementById('hist-search').value||'').toLowerCase();
+  const el=document.getElementById('hist-content');
+  if(!state.lots.length){el.innerHTML='<div class="empty"><span class="empty-icon">🏀</span><p>No history yet.</p></div>';return;}
+
+  const jerseys={};
+  for(const lot of state.lots){
+    const key=`${lot.player}__${lot.title}`;
+    if(!jerseys[key])jerseys[key]={title:lot.title,player:lot.player||'',team:lot.team||'',appearances:[]};
+    jerseys[key].appearances.push({auction:lot.auctionName,tote:lot.toteLabel,lotNum:lot.lotNum,date:lot.history?.[0]?.date||'',soldStatus:lot.soldStatus});
+  }
+
+  const filtered=Object.values(jerseys).filter(j=>!q||j.player.toLowerCase().includes(q)||j.team.toLowerCase().includes(q)||j.title.toLowerCase().includes(q)||j.appearances.some(a=>String(a.lotNum).includes(q)));
+  if(!filtered.length){el.innerHTML='<div class="empty"><span class="empty-icon">🔍</span><p>No results.</p></div>';return;}
+
+  el.innerHTML=filtered.map(j=>`
+    <div class="history-item">
+      <div class="history-header">
+        <div><div style="font-size:14px;font-weight:600;margin-bottom:2px">${j.title}</div><div style="font-size:11px;color:var(--muted2)">${j.player}${j.team?' · '+j.team:''}</div></div>
+        <span class="badge badge-gold">${j.appearances.length}×</span>
+      </div>
+      <div>${j.appearances.map(a=>`<span class="auction-tag">${a.auction} · ${a.tote} · Lot ${a.lotNum}${a.soldStatus==='unsold'?' · <span style="color:var(--red)">Unsold</span>':''}</span>`).join('')}</div>
+    </div>`).join('');
+}
+</script>
+</body>
+</html>
