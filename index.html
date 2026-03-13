@@ -1844,6 +1844,13 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
       }
     }
     btn.textContent = '⏳ Saving spreadsheet...';
+    // Merge processedLots into state.lots before building CSV
+    for(const lot of processedLots) {
+      const si = state.lots.findIndex(l=>l.id===lot.id);
+      if(si >= 0) Object.assign(state.lots[si], lot);
+      else state.lots.push(lot);
+    }
+    saveState();
     // Upload full auction CSV
     const allLots = state.lots.filter(l=>l.auctionName===auctionName).sort((a,b)=>a.lotNum-b.lotNum);
     const rows = [['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
@@ -2577,7 +2584,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.6.0
+  AUCTION MANAGER PRO · V1.6.1
 </div>
 </body>
 </html>
