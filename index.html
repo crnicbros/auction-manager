@@ -257,14 +257,18 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
     <div class="field" style="margin-top:10px">
       <label class="field-label">Item Type</label>
-      <select id="item-type" style="width:100%;padding:10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:15px" onchange="updateCamUI()">
+      <select id="item-type" style="width:100%;padding:10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:15px" onchange="updateCamUI();document.getElementById('photo-size-field').style.display=this.value==='photo'?'block':'none'">
         <option value="jersey">🏈 Signed Jersey</option>
         <option value="ball">⚾ Signed Ball</option>
-        <option value="photo">📸 Signed 8x10 Photo</option>
+        <option value="photo">📸 Signed Photo</option>
         <option value="card">🃏 Sports Card</option>
         <option value="funko">🎭 Signed Funko Pop</option>
         <option value="equipment">🏏 Sports Equipment</option>
       </select>
+    </div>
+    <div class="field" id="photo-size-field" style="display:none;margin-top:10px">
+      <label class="field-label">Photo Size</label>
+      <input type="text" id="photo-size" placeholder="e.g. 8x10, 11x14, 16x20" style="max-width:160px" />
     </div>
   </div>
 
@@ -1063,7 +1067,7 @@ Return JSON only, no markdown, no explanation:
 Title example: "Michael Jordan Signed Basketball Chicago Bulls w/COA"`
   },
   photo: {
-    label: '📸 Signed 8x10 Photo',
+    label: '📸 Signed Photo',
     photos: 4,
     slots: ['Photo Front', 'Autograph Close-up', 'COA Sticker', 'Back with COA Card'],
     prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed 8x10 photo in this order: front of photo, close-up of autograph, COA sticker, back of photo with COA card.
@@ -1136,7 +1140,12 @@ function getItemConfig() {
 
 async function callClaude(files, apiKey, itemType='jersey'){
   const config = ITEM_CONFIG[itemType] || ITEM_CONFIG.jersey;
-  const prompt = config.prompt;
+  let prompt = config.prompt;
+  if(itemType === 'photo') {
+    const photoSize = document.getElementById('photo-size')?.value.trim() || '8x10';
+    const sizeLabel = photoSize + ' Photo';
+    prompt = prompt.replace(/PHOTO_SIZE_PLACEHOLDER/g, sizeLabel);
+  }
   const contents=[];
   for(let i=0;i<files.length;i++){
     const b64=await fileToBase64(files[i], i===0 ? 2000 : 1600);
@@ -2461,7 +2470,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.4.6
+  AUCTION MANAGER PRO · V1.4.7
 </div>
 </body>
 </html>
