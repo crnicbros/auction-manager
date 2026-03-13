@@ -255,6 +255,17 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
         <input type="text" id="tote-label" placeholder="e.g. Tote A" />
       </div>
     </div>
+    <div class="field" style="margin-top:10px">
+      <label class="field-label">Item Type</label>
+      <select id="item-type" style="width:100%;padding:10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:15px" onchange="updateCamUI()">
+        <option value="jersey">🏈 Signed Jersey</option>
+        <option value="ball">⚾ Signed Ball</option>
+        <option value="photo">📸 Signed 8x10 Photo</option>
+        <option value="card">🃏 Sports Card</option>
+        <option value="funko">🎭 Signed Funko Pop</option>
+        <option value="equipment">🏏 Sports Equipment</option>
+      </select>
+    </div>
     <div class="field">
       <label class="field-label">Starting Lot Number</label>
       <input type="number" id="start-lot" value="1" min="1" style="max-width:90px" />
@@ -295,17 +306,13 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
         <div id="cam-zoom-indicator" style="display:none;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);border-radius:8px;padding:4px 12px;font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--gold);letter-spacing:1px">1.0×</div>
         <!-- Lot/photo counter overlay -->
         <div style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.65);border-radius:8px;padding:6px 12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:15px;color:#fff">
-          LOT <span id="cam-lot-num">—</span> · PHOTO <span id="cam-photo-num">1</span>/4
+          LOT <span id="cam-lot-num">—</span> · PHOTO <span id="cam-photo-num">1</span>/<span id="cam-photos-per-lot">4</span>
         </div>
         <div style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.65);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--gold)" id="cam-label-overlay">Back of Jersey</div>
       </div>
 
       <!-- Photo strip showing current lot progress -->
-      <div id="cam-strip" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px">
-        <div class="cam-slot" id="camslot_0"><span>📷</span><div>Back</div></div>
-        <div class="cam-slot" id="camslot_1"><span>📷</span><div>Signature</div></div>
-        <div class="cam-slot" id="camslot_2"><span>📷</span><div>COA</div></div>
-        <div class="cam-slot" id="camslot_3"><span>📷</span><div>Front</div></div>
+      <div id="cam-strip" style="display:grid;gap:6px;margin-bottom:14px">
       </div>
 
       <!-- Controls -->
@@ -1027,27 +1034,121 @@ async function correctBlob(file){
   return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
 }
 
-async function callClaude(files,apiKey){
+const ITEM_CONFIG = {
+  jersey: {
+    label: '🏈 Signed Jersey',
+    photos: 4,
+    slots: ['Back of Jersey', 'Signature Close-up', 'COA', 'Front of Jersey'],
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed sports jersey in this order: back of jersey, signature close-up, COA document, front of jersey.
+
+Identify:
+1. PLAYER NAME — from COA, signature, and jersey nameplate
+2. JERSEY NUMBER — the LARGE digits on the back of the jersey fabric (biggest number visible). Read carefully, never guess.
+3. TEAM NAME — full team name (e.g. "Chicago Bulls" not just "Bulls")
+
+Return JSON only, no markdown, no explanation:
+{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name Signed Jersey #Number Full Team Name w/COA","description":"Full Name Signed Jersey #Number Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+
+Title example: "Michael Jordan Signed Jersey #23 Chicago Bulls w/COA"`
+  },
+  ball: {
+    label: '⚾ Signed Ball',
+    photos: 4,
+    slots: ['Full Ball', 'Signature Close-up', 'COA Sticker', 'COA Card'],
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed sports ball in this order: full ball with autograph visible, close-up of signature, COA sticker on ball, COA card/document.
+
+Identify:
+1. PLAYER NAME — from the signature and COA
+2. BALL TYPE — e.g. "Basketball", "Baseball", "Football", "Soccer Ball"
+3. TEAM NAME — full team name if visible (e.g. "Chicago Bulls")
+
+Return JSON only, no markdown, no explanation:
+{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Ball Type Full Team Name w/COA","description":"Full Name Signed Ball Type Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+
+Title example: "Michael Jordan Signed Basketball Chicago Bulls w/COA"`
+  },
+  photo: {
+    label: '📸 Signed 8x10 Photo',
+    photos: 4,
+    slots: ['Photo Front', 'Autograph Close-up', 'COA Sticker', 'Back with COA Card'],
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed 8x10 photo in this order: front of photo, close-up of autograph, COA sticker, back of photo with COA card.
+
+Identify:
+1. PLAYER NAME — from the autograph and COA
+2. SPORT — e.g. "Basketball", "Baseball", "Football"
+3. TEAM NAME — full team name if visible
+
+Return JSON only, no markdown, no explanation:
+{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed 8x10 Photo Full Team Name w/COA","description":"Full Name Signed 8x10 Photo Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+
+Title example: "Michael Jordan Signed 8x10 Photo Chicago Bulls w/COA"`
+  },
+  card: {
+    label: '🃏 Sports Card',
+    photos: 4,
+    slots: ['Card Front with Autograph', 'Autograph Close-up', 'COA Sticker', 'Card Back with COA Card'],
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed sports card in this order: front of card with autograph, close-up of autograph, COA sticker, back of card with COA card.
+
+Identify:
+1. PLAYER NAME — from card front
+2. YEAR — card year (e.g. "1986")
+3. BRAND — card brand (e.g. "Topps", "Fleer", "Upper Deck", "Panini", "Bowman")
+4. TEAM NAME — full team name
+
+Return JSON only, no markdown, no explanation:
+{"player":"Full Name","number":"Year Brand","team":"Full Team Name","title":"Full Name Signed Year Brand Card Full Team Name w/COA","description":"Full Name Signed Year Brand Card Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+
+Title example: "Michael Jordan Signed 1986 Fleer Card Chicago Bulls w/COA"`
+  },
+  funko: {
+    label: '🎭 Signed Funko Pop',
+    photos: 5,
+    slots: ['Front with Autograph', 'COA Close-up', 'Side 1', 'Side 2', 'Back'],
+    prompt: `You are an expert sports memorabilia authenticator. These 5 photos show a signed Funko Pop in this order: front with autograph, COA close-up, side 1, side 2, back of box.
+
+Identify:
+1. PLAYER/CHARACTER NAME — from box and signature
+2. SERIES — Funko series (e.g. "NBA", "NFL", "MLB", "Pop! Sports")
+3. TEAM NAME — full team name if applicable
+
+Return JSON only, no markdown, no explanation:
+{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Funko Pop Full Team Name w/COA","description":"Full Name Signed Funko Pop Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3,4]}
+
+Title example: "Michael Jordan Signed Funko Pop Chicago Bulls w/COA"`
+  },
+  equipment: {
+    label: '🏏 Sports Equipment',
+    photos: 4,
+    slots: ['Full Item with Autograph', 'Autograph Close-up', 'COA Sticker', 'Side with COA Card'],
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed sports equipment item in this order: full item with autograph visible, close-up of autograph, COA sticker on item, side view with COA card.
+
+Identify:
+1. PLAYER NAME — from the autograph and COA
+2. ITEM TYPE — specific item (e.g. "Baseball Bat", "Helmet", "Yard Marker", "Glove", "Cleat")
+3. TEAM NAME — full team name if visible
+
+Return JSON only, no markdown, no explanation:
+{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Item Type Full Team Name w/COA","description":"Full Name Signed Item Type Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+
+Title example: "Babe Ruth Signed Baseball Bat New York Yankees w/COA"`
+  }
+};
+
+function getItemConfig() {
+  const type = document.getElementById('item-type')?.value || 'jersey';
+  return ITEM_CONFIG[type] || ITEM_CONFIG.jersey;
+}
+
+async function callClaude(files, apiKey, itemType='jersey'){
+  const config = ITEM_CONFIG[itemType] || ITEM_CONFIG.jersey;
+  const prompt = config.prompt;
   const contents=[];
   for(let i=0;i<files.length;i++){
-    // Send first image (back of jersey) at full 2000px — number is clearly visible there
-    const b64=await fileToBase64(files[i], i===0 ? 1200 : 800);
+    const b64=await fileToBase64(files[i], i===0 ? 2000 : 1600);
     contents.push({type:'image',source:{type:'base64',media_type:files[i].type||'image/jpeg',data:b64}});
-    contents.push({type:'text',text:`Image ${i}: "${files[i].name}"`});
+    contents.push({type:'text',text:`Image ${i} (${config.slots[i]||'Photo '+i}): "${files[i].name}"`});
   }
-  contents.push({type:'text',text:`You are an expert sports memorabilia authenticator. These ${files.length} photos show a signed sports jersey lot.
-
-CRITICAL TASK: Identify these 3 things from the jersey photos:
-1. PLAYER NAME — read from the COA, signature, and jersey nameplate
-2. JERSEY NUMBER — the LARGE digits on the back of the jersey fabric. This is the biggest number on the jersey. Read it carefully.
-3. TEAM NAME — full team name (e.g. "Denver Nuggets" not just "Nuggets")
-
-Return JSON only, no markdown:
-{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name Signed Jersey #Number Full Team Name w/COA","description":"Full Name Signed Jersey #Number Full Team Name w/COA","hasCOA":true,"indices":[back,sig,coa,front]}
-
-- indices: map to [back of jersey, signature photo, COA photo, front of jersey] using 0-${files.length-1}
-- number: the actual digits on the jersey (e.g. "15", "23", "7") — never "?"
-- title/description example: "Michael Jordan Signed Jersey #23 Chicago Bulls w/COA"`});
+  contents.push({type:'text', text: prompt});
   let raw='';
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:contents}]})});
@@ -1094,7 +1195,9 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
   if(cfForTote.length) plog(`📦 Including ${cfForTote.length} carry-forward items from previous auction`,'warn');
 
   try{
-    const totalLots=Math.floor(allFiles.length/4);
+    const itemType = document.getElementById('item-type').value || 'jersey';
+    const photosPerLot = (ITEM_CONFIG[itemType]||ITEM_CONFIG.jersey).photos;
+    const totalLots=Math.floor(allFiles.length/photosPerLot);
 
     // ---- ADAPTIVE PACING ENGINE ----
     let pace = 2000;
@@ -1129,7 +1232,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
 
     for(let i=0;i<totalLots;i++){
       if(processingAborted) break;
-      const batchFiles = allFiles.slice(i*4, i*4+4);
+      const batchFiles = allFiles.slice(i*photosPerLot, i*photosPerLot+photosPerLot);
       setProgress(Math.round((i/totalLots)*72), 'Jersey ' + (i+1) + '/' + totalLots + ' · pace ' + (pace/1000).toFixed(1) + 's');
       plog('🔍 Jersey ' + (i+1) + '/' + totalLots + ': analyzing...');
 
@@ -1139,7 +1242,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
         if(processingAborted) break;
         const t0 = Date.now();
         try{
-          lotData = await callClaude(batchFiles, apiKey);
+          lotData = await callClaude(batchFiles, apiKey, document.getElementById("item-type").value);
           updatePace(Date.now() - t0, false);
           if(attempt > 0) plog('✓ Retry succeeded on attempt ' + (attempt+1), 'ok');
           break;
@@ -1161,8 +1264,8 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       plog('✓ Jersey ' + (i+1) + ': ' + lotData.player + ' #' + (lotData.number||'?') + ' — ' + lotData.team, 'ok');
 
       const blobs=[];
-      for(let p=0;p<4;p++){
-        const srcIdx=lotData.indices[p]??p;
+      for(let p=0;p<photosPerLot;p++){
+        const srcIdx=lotData.indices?.[p]??p;
         const file=batchFiles[srcIdx]??batchFiles[p];
         if(!file){blobs.push(null);continue;}
         blobs.push(await correctBlob(file));
@@ -2060,7 +2163,7 @@ let camStream = null;
 let camFacing = 'environment'; // back camera by default
 let camPhotos = []; // all captured blobs in order
 let camLots = []; // completed lots [{blobs:[b,b,b,b], urls:[u,u,u,u]}]
-const CAM_LABELS = ['Back of Jersey','Signature','COA','Front of Jersey'];
+// CAM_LABELS is now dynamic — use getItemConfig().slots
 
 function setPhotoMode(mode) {
   const uploadEl = document.getElementById('upload-mode');
@@ -2223,36 +2326,51 @@ function camClear() {
 }
 
 function updateCamUI() {
+  const cfg = getItemConfig();
+  const photosPerLot = cfg.photos;
+  const slots = cfg.slots;
   const total = camPhotos.length;
-  const currentLotIdx = Math.floor(total / 4);
-  const currentPhotoInLot = total % 4;
-  const startLot = parseInt(document.getElementById('start-lot').value)||1;
+  const currentLotIdx = Math.floor(total / photosPerLot);
+  const currentPhotoInLot = total % photosPerLot;
 
   // Update counters
   document.getElementById('cam-lot-num').textContent = currentLotIdx + 1;
   document.getElementById('cam-photo-num').textContent = currentPhotoInLot + 1;
-  document.getElementById('cam-label-overlay').textContent = CAM_LABELS[currentPhotoInLot];
+  document.getElementById('cam-photos-per-lot').textContent = photosPerLot;
+  document.getElementById('cam-label-overlay').textContent = slots[currentPhotoInLot] || '';
   document.getElementById('cam-count').textContent = total;
-  document.getElementById('cam-process-btn').disabled = total < 4;
+  document.getElementById('cam-process-btn').disabled = total < photosPerLot;
 
+  // Rebuild strip dynamically for current item type
+  const strip = document.getElementById('cam-strip');
+  strip.style.gridTemplateColumns = `repeat(${photosPerLot},1fr)`;
+  // Ensure correct number of slots exist
+  while(strip.children.length < photosPerLot) {
+    const d = document.createElement('div');
+    d.className = 'cam-slot';
+    strip.appendChild(d);
+  }
+  while(strip.children.length > photosPerLot) {
+    strip.removeChild(strip.lastChild);
+  }
   // Update strip - show current lot's photos
-  const lotStartIdx = currentLotIdx * 4;
-  for(let i = 0; i < 4; i++) {
-    const slot = document.getElementById(`camslot_${i}`);
+  const lotStartIdx = currentLotIdx * photosPerLot;
+  for(let i = 0; i < photosPerLot; i++) {
+    const slot = strip.children[i];
     const photo = camPhotos[lotStartIdx + i];
+    const shortLabel = slots[i]?.split(' ')[0] || (i+1);
     if(photo) {
-      slot.innerHTML = `<img src="${photo.url}"/><div style="font-size:9px;margin-top:3px;color:var(--green)">${CAM_LABELS[i]}</div>`;
+      slot.innerHTML = `<img src="${photo.url}"/><div style="font-size:9px;margin-top:3px;color:var(--green)">${shortLabel}</div>`;
       slot.className = 'cam-slot filled';
     } else {
-      slot.innerHTML = `<span>📷</span><div>${CAM_LABELS[i]}</div>`;
+      slot.innerHTML = `<span>📷</span><div>${shortLabel}</div>`;
       slot.className = 'cam-slot' + (i === currentPhotoInLot ? ' active' : '');
-      if(i === currentPhotoInLot) slot.style.borderColor='var(--gold)';
-      else slot.style.borderColor='';
+      slot.style.borderColor = i === currentPhotoInLot ? 'var(--gold)' : '';
     }
   }
 
   // Show completed lots summary
-  const completedLots = Math.floor(total / 4);
+  const completedLots = Math.floor(total / photosPerLot);
   const summaryEl = document.getElementById('cam-lots-summary');
   const listEl = document.getElementById('cam-lots-list');
   if(completedLots > 0) {
@@ -2262,8 +2380,8 @@ function updateCamUI() {
       const lotNum = l + 1;
       const div = document.createElement('div');
       div.className = 'cam-lot-card';
-      const thumbs = [0,1,2,3].map(i => {
-        const p = camPhotos[l*4+i];
+      const thumbs = Array.from({length:photosPerLot}, (_,i) => {
+        const p = camPhotos[l*photosPerLot+i];
         return p ? `<img src="${p.url}"/>` : '<div style="width:32px;height:32px;background:var(--bg4);border-radius:4px"></div>';
       }).join('');
       div.innerHTML = `
@@ -2278,13 +2396,16 @@ function updateCamUI() {
 }
 
 async function camFinish() {
-  if(camPhotos.length < 4) { notify('Need at least 4 photos (1 lot)', true); return; }
-  // Convert camera photos to File objects and hand off to normal processor
-  const files = await Promise.all(camPhotos.map(async (p, i) => {
+  const cfg = getItemConfig();
+  const photosPerLot = cfg.photos;
+  if(camPhotos.length < photosPerLot) { notify(`Need at least ${photosPerLot} photos (1 lot)`, true); return; }
+  // Only use complete lots
+  const completeLots = Math.floor(camPhotos.length / photosPerLot);
+  const usePhotos = camPhotos.slice(0, completeLots * photosPerLot);
+  const files = await Promise.all(usePhotos.map(async (p, i) => {
     const name = `cam_photo_${String(i+1).padStart(3,'0')}.jpg`;
     return new File([p.blob], name, {type:'image/jpeg'});
   }));
-  // Switch to upload mode display so logs show
   setPhotoMode('upload');
   handleFiles(files);
   notify(`📷 ${files.length} camera photos ready — hit Process!`);
@@ -2342,7 +2463,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.4.0
+  AUCTION MANAGER PRO · V1.4.2
 </div>
 </body>
 </html>
