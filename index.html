@@ -1044,7 +1044,7 @@ const ITEM_CONFIG = {
 Identify:
 1. PLAYER NAME — from COA, signature, and jersey nameplate
 2. JERSEY NUMBER — the LARGE digits on the back of the jersey fabric (biggest number visible). Read carefully, never guess.
-3. TEAM NAME — full team name (e.g. "Chicago Bulls" not just "Bulls")
+3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Dodgers", "Cowboys") — not the city name. Keep it short to fit in the title.
 
 Return JSON only, no markdown, no explanation:
 {"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name Signed Jersey #Number Full Team Name w/COA","description":"Full Name Signed Jersey #Number Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
@@ -1060,7 +1060,7 @@ Title example: "Michael Jordan Signed Jersey #23 Chicago Bulls w/COA"`
 Identify:
 1. PLAYER NAME — from the signature and COA
 2. BALL TYPE — e.g. "Basketball", "Baseball", "Football", "Soccer Ball"
-3. TEAM NAME — full team name if visible (e.g. "Chicago Bulls")
+3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Lakers") — not the city name.
 
 Return JSON only, no markdown, no explanation:
 {"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Ball Type Full Team Name w/COA","description":"Full Name Signed Ball Type Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
@@ -1076,7 +1076,7 @@ Title example: "Michael Jordan Signed Basketball Chicago Bulls w/COA"`
 Identify:
 1. PLAYER NAME — from the autograph and COA
 2. SPORT — e.g. "Basketball", "Baseball", "Football"
-3. TEAM NAME — full team name if visible
+3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Dodgers") — not the city name.
 
 Return JSON only, no markdown, no explanation:
 {"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed 8x10 Photo Full Team Name w/COA","description":"Full Name Signed 8x10 Photo Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
@@ -1093,7 +1093,7 @@ Identify:
 1. PLAYER NAME — from card front
 2. YEAR — card year (e.g. "1986")
 3. BRAND — card brand (e.g. "Topps", "Fleer", "Upper Deck", "Panini", "Bowman")
-4. TEAM NAME — full team name
+4. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Yankees") — not the city name.
 
 Return JSON only, no markdown, no explanation:
 {"player":"Full Name","number":"Year Brand","team":"Full Team Name","title":"Full Name Signed Year Brand Card Full Team Name w/COA","description":"Full Name Signed Year Brand Card Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
@@ -1109,7 +1109,7 @@ Title example: "Michael Jordan Signed 1986 Fleer Card Chicago Bulls w/COA"`
 Identify:
 1. PLAYER/CHARACTER NAME — from box and signature
 2. SERIES — Funko series (e.g. "NBA", "NFL", "MLB", "Pop! Sports")
-3. TEAM NAME — full team name if applicable
+3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Lakers") — not the city name.
 
 Return JSON only, no markdown, no explanation:
 {"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Funko Pop Full Team Name w/COA","description":"Full Name Signed Funko Pop Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3,4]}
@@ -1120,19 +1120,49 @@ Title example: "Michael Jordan Signed Funko Pop Chicago Bulls w/COA"`
     label: '🏏 Sports Equipment',
     photos: 4,
     slots: ['Full Item with Autograph', 'Autograph Close-up', 'COA Sticker', 'Side with COA Card'],
-    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed sports equipment item in this order: full item with autograph visible, close-up of autograph, COA sticker on item, side view with COA card.
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed sports equipment item.
+
+THIS IS NOT A JERSEY, BALL, OR PHOTO. You MUST identify the item as EXACTLY one of these five options:
+1. Yard Marker
+2. Baseball Bat
+3. Hat
+4. Mini Helmet
+5. Helmet
+
+A Yard Marker is a large flat orange triangular or rectangular marker used on football sidelines — it is NOT a jersey, ball, or helmet.
+Do NOT pick anything outside this list. If unsure, pick the closest match from the five options above.
 
 Identify:
 1. PLAYER NAME — from the autograph and COA
-2. ITEM TYPE — specific item (e.g. "Baseball Bat", "Helmet", "Yard Marker", "Glove", "Cleat")
-3. TEAM NAME — full team name if visible
+2. ITEM TYPE — must be exactly one of: Yard Marker, Baseball Bat, Hat, Mini Helmet, Helmet
+3. TEAM MASCOT — just the mascot/nickname (e.g. "Dodgers", "Bulls", "Cowboys") — not the full city name. Keep it short.
 
 Return JSON only, no markdown, no explanation:
-{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Item Type Full Team Name w/COA","description":"Full Name Signed Item Type Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+{"player":"Full Name","number":"","team":"Mascot Only","title":"Full Name Signed Item Type Mascot w/COA","description":"Full Name Signed Item Type Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
 
-Title example: "Babe Ruth Signed Baseball Bat New York Yankees w/COA"`
+- CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only for team.
+- title example: "Babe Ruth Signed Baseball Bat Yankees w/COA"`
+  },
+  framed: {
+    label: '🖼️ Framed Jersey',
+    photos: 4,
+    slots: ['Whole Framed Jersey', 'Signature Close-up', 'COA Sticker', 'COA Card'],
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed framed jersey in this order: whole framed jersey, close-up of signature, COA sticker, COA card.
+
+Identify:
+1. PLAYER NAME — from the COA, signature, and jersey nameplate
+2. JERSEY NUMBER — the LARGE digits on the jersey fabric. Read carefully, never guess.
+3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Dodgers", "Cowboys") — not the full city name.
+
+Return JSON only, no markdown, no explanation:
+{"player":"Full Name","number":"##","team":"Mascot Only","title":"Full Name Signed Framed Jersey #Number Mascot w/COA","description":"Full Name Signed Framed Jersey #Number Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
+
+- indices: order photos as [whole framed jersey, signature close-up, COA sticker, COA card] using 0-3
+- CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only for team.
+- title example: "Michael Jordan Signed Framed Jersey #23 Bulls w/COA"`
   }
 };
+
 
 function getItemConfig() {
   const type = document.getElementById('item-type')?.value || 'jersey';
@@ -2471,7 +2501,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.4.8
+  AUCTION MANAGER PRO · V1.4.9
 </div>
 </body>
 </html>
