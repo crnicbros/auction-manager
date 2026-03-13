@@ -1047,9 +1047,10 @@ Identify:
 3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Dodgers", "Cowboys") — not the city name. Keep it short to fit in the title.
 
 Return JSON only, no markdown, no explanation:
-{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name Signed Jersey #Number Full Team Name w/COA","description":"Full Name Signed Jersey #Number Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+{"player":"Full Name","number":"##","team":"Full Team Name","title":"Full Name Signed Jersey #Number Mascot w/COA","description":"Full Name Signed Jersey #Number Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
 
-Title example: "Michael Jordan Signed Jersey #23 Chicago Bulls w/COA"`
+Title example: "Michael Jordan Signed Jersey #23 Bulls w/COA"
+- CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only (e.g. "Bulls" not "Chicago Bulls"). Always end with w/COA.`
   },
   ball: {
     label: '⚾ Signed Ball',
@@ -1063,15 +1064,16 @@ Identify:
 3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Lakers") — not the city name.
 
 Return JSON only, no markdown, no explanation:
-{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Ball Type Full Team Name w/COA","description":"Full Name Signed Ball Type Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Ball Type Mascot w/COA","description":"Full Name Signed Ball Type Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
 
-Title example: "Michael Jordan Signed Basketball Chicago Bulls w/COA"`
+Title example: "Michael Jordan Signed Basketball Bulls w/COA"
+- CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only. Always end with w/COA.`
   },
   photo: {
     label: '📸 Signed Photo',
     photos: 4,
     slots: ['Photo Front', 'Autograph Close-up', 'COA Sticker', 'Back with COA Card'],
-    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed 8x10 photo in this order: front of photo, close-up of autograph, COA sticker, back of photo with COA card.
+    prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed photo (size: PHOTO_SIZE_PLACEHOLDER) in this order: front of photo, close-up of autograph, COA sticker, back of photo with COA card.
 
 Identify:
 1. PLAYER NAME — from the autograph and COA
@@ -1079,9 +1081,10 @@ Identify:
 3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Dodgers") — not the city name.
 
 Return JSON only, no markdown, no explanation:
-{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed 8x10 Photo Full Team Name w/COA","description":"Full Name Signed 8x10 Photo Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed PHOTO_SIZE_PLACEHOLDER Mascot w/COA","description":"Full Name Signed PHOTO_SIZE_PLACEHOLDER Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
 
-Title example: "Michael Jordan Signed 8x10 Photo Chicago Bulls w/COA"`
+Title example: "Michael Jordan Signed 8x10 Photo Bulls w/COA"
+- CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only. Always end with w/COA.`
   },
   card: {
     label: '🃏 Sports Card',
@@ -1096,9 +1099,10 @@ Identify:
 4. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Yankees") — not the city name.
 
 Return JSON only, no markdown, no explanation:
-{"player":"Full Name","number":"Year Brand","team":"Full Team Name","title":"Full Name Signed Year Brand Card Full Team Name w/COA","description":"Full Name Signed Year Brand Card Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3]}
+{"player":"Full Name","number":"Year Brand","team":"Full Team Name","title":"Full Name Signed Year Brand Card Mascot w/COA","description":"Full Name Signed Year Brand Card Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
 
-Title example: "Michael Jordan Signed 1986 Fleer Card Chicago Bulls w/COA"`
+Title example: "Michael Jordan Signed 1986 Fleer Card Bulls w/COA"
+- CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only. Always end with w/COA.`
   },
   funko: {
     label: '🎭 Signed Funko Pop',
@@ -1112,9 +1116,10 @@ Identify:
 3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Lakers") — not the city name.
 
 Return JSON only, no markdown, no explanation:
-{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Funko Pop Full Team Name w/COA","description":"Full Name Signed Funko Pop Full Team Name w/COA","hasCOA":true,"indices":[0,1,2,3,4]}
+{"player":"Full Name","number":"","team":"Full Team Name","title":"Full Name Signed Funko Pop Mascot w/COA","description":"Full Name Signed Funko Pop Mascot w/COA","hasCOA":true,"indices":[0,1,2,3,4]}
 
-Title example: "Michael Jordan Signed Funko Pop Chicago Bulls w/COA"`
+Title example: "Michael Jordan Signed Funko Pop Bulls w/COA"
+- CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only. Always end with w/COA.`
   },
   equipment: {
     label: '🏏 Sports Equipment',
@@ -2505,7 +2510,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.5.0
+  AUCTION MANAGER PRO · V1.5.1
 </div>
 </body>
 </html>
