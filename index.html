@@ -1138,7 +1138,7 @@ A Yard Marker is a large flat orange triangular or rectangular marker used on fo
 Do NOT pick anything outside this list. If unsure, pick the closest match from the five options above.
 
 Identify:
-1. PLAYER NAME — look at the signature on the item. Signatures are often illegible. You MUST only return a name if you can read every letter clearly. If there is ANY doubt or uncertainty about any part of the name, return exactly "Unknown". It is far better to return "Unknown" than to guess incorrectly. DO NOT attempt to identify who signed it based on team, context, or partial letters — only return a name if you can read it with 100% certainty.
+1. PLAYER NAME — always return exactly "Unknown". Do not attempt to read the signature.
 2. ITEM TYPE — must be exactly one of: Yard Marker, Baseball Bat, Hat, Mini Helmet, Helmet
 3. TEAM MASCOT — just the mascot/nickname (e.g. "Dodgers", "Bulls", "Cowboys") — not the full city name. If no team is visible, leave blank.
 
@@ -1585,7 +1585,8 @@ function renderLotsGrid(){
             <div class="field"><label class="field-label">Team</label><input type="text" id="et_${lot.id}" value="${lot.team||''}"/></div>
           </div>
           <div class="field"><label class="field-label">Title</label><input type="text" id="etitle_${lot.id}" value="${lot.title||''}"/></div>
-          <div class="field"><label class="field-label">Description</label><input type="text" id="edesc_${lot.id}" value="${lot.description||''}"/></div>
+          <div class="field" style="display:none"><label class="field-label">Description</label><input type="text" id="edesc_${lot.id}" value="${lot.description||''}"/></div>
+          <p class="hint" style="margin-top:4px">Description auto-fills from title when saved.</p>
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn btn-green btn-sm" onclick="saveLotEdit('${lot.id}')">✓ Save</button>
             <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${lot.id}')">Cancel</button>
@@ -1772,7 +1773,7 @@ function saveLotEdit(lotId){
   lot.player=document.getElementById(`ep_${lotId}`).value;
   lot.team=document.getElementById(`et_${lotId}`).value;
   lot.title=document.getElementById(`etitle_${lotId}`).value;
-  lot.description=document.getElementById(`edesc_${lotId}`).value;
+  lot.description=lot.title; // auto-fill description from title
   document.getElementById(`lt_${lotId}`).textContent=lot.title;
   document.getElementById(`ld_${lotId}`).textContent=lot.description;
   const si=state.lots.findIndex(l=>l.id===lot.id);
@@ -2510,7 +2511,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.5.1
+  AUCTION MANAGER PRO · V1.5.2
 </div>
 </body>
 </html>
