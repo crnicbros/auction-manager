@@ -982,7 +982,8 @@ fi.addEventListener('change',()=>handleFiles([...fi.files]));
 function handleFiles(files){
   allFiles=files.filter(f=>f.type.startsWith('image/')).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
   const n=allFiles.length;
-  document.getElementById('file-info').textContent=n?`${n} photos → ~${Math.floor(n/4)} lots`:'';
+  const _ppl=(ITEM_CONFIG[document.getElementById('item-type')?.value]||ITEM_CONFIG.jersey).photos;
+  document.getElementById('file-info').textContent=n?`${n} photos → ~${Math.floor(n/_ppl)} lots`:'';
   document.getElementById('process-btn').disabled=n===0;
   document.getElementById('clear-photos-btn').style.display=n?'inline-flex':'none';
   setStep(2);
@@ -1164,7 +1165,7 @@ function stopProcessing() {
   processingAborted = true;
   document.getElementById('stop-btn').textContent = '⏳ Stopping...';
   document.getElementById('stop-btn').disabled = true;
-  plog('⏹ Stopping after current jersey finishes...', 'warn');
+  plog('⏹ Stopping after current item finishes...', 'warn');
 }
 
 document.getElementById('process-btn').addEventListener('click',async()=>{
@@ -1208,7 +1209,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       if(wasRateLimit) {
         consecutiveOk = 0;
         pace = Math.min(PACE_MAX, pace * 2);
-        plog('🐢 Rate limit — slowing to ' + (pace/1000).toFixed(0) + 's between jerseys', 'warn');
+        plog('🐢 Rate limit — slowing to ' + (pace/1000).toFixed(0) + 's between items', 'warn');
         return;
       }
       consecutiveOk++;
@@ -1227,14 +1228,15 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       }
     }
 
-    plog('🔍 Analyzing ' + totalLots + ' jerseys...');
+    const itemLabel = (ITEM_CONFIG[itemType]||ITEM_CONFIG.jersey).label;
+    plog('🔍 Analyzing ' + totalLots + ' ' + itemLabel + ' lots...');
     const analyzedLots = [];
 
     for(let i=0;i<totalLots;i++){
       if(processingAborted) break;
       const batchFiles = allFiles.slice(i*photosPerLot, i*photosPerLot+photosPerLot);
-      setProgress(Math.round((i/totalLots)*72), 'Jersey ' + (i+1) + '/' + totalLots + ' · pace ' + (pace/1000).toFixed(1) + 's');
-      plog('🔍 Jersey ' + (i+1) + '/' + totalLots + ': analyzing...');
+      setProgress(Math.round((i/totalLots)*72), 'Item ' + (i+1) + '/' + totalLots + ' · pace ' + (pace/1000).toFixed(1) + 's');
+      plog('🔍 Item ' + (i+1) + '/' + totalLots + ': analyzing...');
 
       let lotData;
       let attempt = 0;
@@ -1252,7 +1254,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
           const isRateLimit = msg.includes('rate_limit') || msg.includes('529') || msg.includes('overload') || msg.includes('429');
           updatePace(0, isRateLimit);
           const waitSec = isRateLimit ? Math.round(pace/1000) : Math.min(15 * attempt, 60);
-          plog('⚠ Jersey ' + (i+1) + ': ' + msg.slice(0,60) + ' — retrying in ' + waitSec + 's', 'warn');
+          plog('⚠ Item ' + (i+1) + ': ' + msg.slice(0,60) + ' — retrying in ' + waitSec + 's', 'warn');
           for(let w=0;w<waitSec;w++){
             if(processingAborted) break;
             setProgress(Math.round((i/totalLots)*72), '⏳ Retry in ' + (waitSec-w) + 's...');
@@ -1261,7 +1263,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
         }
       }
       if(!lotData) lotData={player:'Unknown',team:'Unknown',number:'',title:'Unknown Jersey',description:'Unknown Jersey',hasCOA:true,indices:[0,1,2,3]};
-      plog('✓ Jersey ' + (i+1) + ': ' + lotData.player + ' #' + (lotData.number||'?') + ' — ' + lotData.team, 'ok');
+      plog('✓ Item ' + (i+1) + ': ' + lotData.player + (lotData.number ? ' #'+lotData.number : '') + ' — ' + lotData.team, 'ok');
 
       const blobs=[];
       for(let p=0;p<photosPerLot;p++){
@@ -1305,21 +1307,23 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     // Remove used carry-forwards
     state.carryForward=state.carryForward.filter(c=>c.toteLabel!==toteLabel);
 
-    // Now assign lot numbers to analyzed jerseys and build zip
+    // Now assign lot numbers to analyzed items and build zip
+    const itemCfg = ITEM_CONFIG[itemType] || ITEM_CONFIG.jersey;
     for(let i=0;i<analyzedLots.length;i++){
       const {lotData,blobs}=analyzedLots[i];
       const lotNum=lotCounter++;
       const thumbUrls=[];
-      for(let p=0;p<4;p++){
+      for(let p=0;p<photosPerLot;p++){
         const blob=blobs[p];
         if(!blob){thumbUrls.push('');continue;}
         zip.file(`${lotNum}-${p+1}.jpg`,blob);
         thumbUrls.push(URL.createObjectURL(blob));
       }
       const lot={id:`lot_${Date.now()}_${i}`,lotNum,auctionName,toteLabel,toteKey,
+        itemType, photoLabels: itemCfg.slots,
         player:lotData.player,team:lotData.team,title:lotData.title,description:lotData.description,
-        number:lotData.number||'',color:lotData.color||'',sport:lotData.sport||'',hasCOA:lotData.hasCOA!==false,
-        thumbUrls,photoLabels:['Back','Signature','COA','Front'],
+        number:lotData.number||'',hasCOA:lotData.hasCOA!==false,
+        thumbUrls,
         history:[{auction:auctionName,tote:toteLabel,lotNum,date:new Date().toLocaleDateString()}],sold:false};
       processedLots.push(lot);lotNums.push(lotNum);
       plog(`📋 Lot ${lotNum}: ${lotData.player} — ${lotData.team}`,'ok');
@@ -2463,7 +2467,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.4.2
+  AUCTION MANAGER PRO · V1.4.3
 </div>
 </body>
 </html>
