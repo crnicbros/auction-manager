@@ -1448,14 +1448,15 @@ async function findOrCreateFolder(name, parentId=null) {
 
 async function updateOrCreateDriveFile(blob, fileName, mimeType, folderId) {
   // Check if file already exists in folder
+  const q = encodeURIComponent(`name='${fileName.replace(/'/g,"\'")}' and '${folderId}' in parents and trashed=false`);
   const searchRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=name='${fileName}'+and+'${folderId}'+in+parents+and+trashed=false&fields=files(id,name)`,
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
     { headers: { 'Authorization': 'Bearer ' + accessToken } }
   );
   const searchData = await searchRes.json();
   const existing = searchData.files && searchData.files[0];
   if(existing) {
-    // Update existing file content
+    // Update existing file content in place
     const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media`, {
       method: 'PATCH',
       headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': mimeType },
@@ -1854,7 +1855,7 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
     // Upload full auction CSV - use all lots across ALL auctions if auctionName missing
     const csvAuctionName = auctionName || (processedLots[0] && processedLots[0].auctionName) || '';
     const allLots = state.lots.filter(l=>l.auctionName===csvAuctionName).sort((a,b)=>a.lotNum-b.lotNum);
-    plog(`📊 Building CSV: ${allLots.length} lots for "${csvAuctionName}"`, 'ok');
+    plog(`📊 Building CSV: ${allLots.length} lots for "${csvAuctionName}" (total in state: ${state.lots.length})`, 'ok');
     if(!allLots.length) { notify('⚠ No lots found for CSV — check auction name matches', true); }
     const rows = [['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
     allLots.forEach(l => rows.push([l.lotNum, l.title, l.description, 1]));
@@ -2606,7 +2607,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.6.3
+  AUCTION MANAGER PRO · V1.6.4
 </div>
 </body>
 </html>
