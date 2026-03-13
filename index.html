@@ -1903,13 +1903,31 @@ document.getElementById('dl-csv-btn').addEventListener('click',()=>{
 // ============================================================
 // TOTE TRACKER
 // ============================================================
-function deleteTote(toteKey){
+async function deleteTote(toteKey){
   if(!confirm('Delete this tote and all its lots? This cannot be undone.')) return;
+  const tote = state.totes.find(t=>t.toteKey===toteKey);
+  const auctionName = tote ? tote.auctionName : null;
   state.totes = state.totes.filter(t=>t.toteKey!==toteKey);
   state.lots = state.lots.filter(l=>l.toteKey!==toteKey);
   saveState();
   renderTotes();
   notify('Tote deleted.');
+  // Update CSV in Drive if signed in
+  if(accessToken && auctionName) {
+    try {
+      const rootId = await findOrCreateFolder('Auction Manager Pro');
+      const auctionId = await findOrCreateFolder(auctionName, rootId);
+      const remainingLots = state.lots.filter(l=>l.auctionName===auctionName).sort((a,b)=>a.lotNum-b.lotNum);
+      const rows = [['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
+      remainingLots.forEach(l => rows.push([l.lotNum, l.title, l.description, 1]));
+      const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+      const csvBlob = new Blob([csv], {type:'text/csv'});
+      await updateOrCreateDriveFile(csvBlob, `${auctionName}.csv`, 'text/csv', auctionId);
+      notify(`✅ Tote deleted — spreadsheet updated (${remainingLots.length} lots remaining)`);
+    } catch(e) {
+      notify('Tote deleted locally but Drive CSV update failed: ' + e.message, true);
+    }
+  }
 }
 
 function renderTotes(){
@@ -2588,7 +2606,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.6.2
+  AUCTION MANAGER PRO · V1.6.3
 </div>
 </body>
 </html>
