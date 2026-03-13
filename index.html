@@ -1328,22 +1328,37 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
 
     // All AI done — now pull latest state from Google to get true next lot number
     setProgress(75,'Getting next lot number...');
+    // Get existing lot numbers — use local state (which reflects deletions)
+    // Also check Sheets for any lots added by other phones, but don't overwrite local deletions
+    const existingNums = new Set(state.lots.filter(l=>l.auctionName===auctionName).map(l=>l.lotNum));
     if(accessToken && state.masterSheetId){
-      plog('🔄 Syncing with Google Sheets for lot numbers...');
-      try{ await pullFromSheet(); plog('✅ Synced — assigning lot numbers','ok'); }
-      catch(e){ plog('⚠ Could not sync — using local lot numbers','warn'); }
+      plog('🔄 Checking Google Sheets for lot numbers from other devices...');
+      try{
+        const sheetId = await getMasterSheetId();
+        const res = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${LOTS_TAB}!A2:D`);
+        const rows = (res.values||[]);
+        let added = 0;
+        for(const r of rows){
+          const lotAuction = r[1]||'';
+          const lotNum = Number(r[3])||0;
+          if(lotAuction === auctionName && lotNum && !existingNums.has(lotNum)){
+            existingNums.add(lotNum);
+            added++;
+          }
+        }
+        plog(`✅ Sheets check done — ${existingNums.size} lot numbers reserved (${added} from other devices)`,'ok');
+      }
+      catch(e){ plog('⚠ Could not check Sheets — using local lot numbers','warn'); }
     }
-
-    // Assign lot numbers NOW after sync
-    const maxExisting = state.lots.filter(l=>l.auctionName===auctionName).reduce((m,l)=>Math.max(m,l.lotNum||0),0);
-    let lotCounter = maxExisting + 1;
-    plog(`📋 Starting at lot ${lotCounter}`);
+    const maxExisting = existingNums.size ? Math.max(...existingNums) : 0;
+    function nextLotNum() { let n=1; while(existingNums.has(n)) n++; existingNums.add(n); return n; }
+    plog(`📋 Filling gaps from lot 1 (max existing: ${maxExisting})`);
 
     // First assign carry-forwards
     for(const cf of cfForTote){
-      const lot={...cf,id:`lot_${Date.now()}_cf_${cf.originalLotNum}`,lotNum:lotCounter,auctionName,toteLabel,toteKey,
-        history:[...(cf.history||[]),{auction:auctionName,tote:toteLabel,lotNum:lotCounter,date:new Date().toLocaleDateString()}],soldStatus:undefined};
-      processedLots.push(lot);lotNums.push(lotCounter);lotCounter++;
+      const lot={...cf,id:`lot_${Date.now()}_cf_${cf.originalLotNum}`,lotNum:nextLotNum(),auctionName,toteLabel,toteKey,
+        history:[...(cf.history||[]),{auction:auctionName,tote:toteLabel,lotNum:nextLotNum(),date:new Date().toLocaleDateString()}],soldStatus:undefined};
+      processedLots.push(lot);lotNums.push(lot.lotNum);
       plog(`↩️ Lot ${lot.lotNum}: ${lot.title} (carried forward)`,'warn');
     }
 
@@ -1354,7 +1369,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     const itemCfg = ITEM_CONFIG[itemType] || ITEM_CONFIG.jersey;
     for(let i=0;i<analyzedLots.length;i++){
       const {lotData,blobs}=analyzedLots[i];
-      const lotNum=lotCounter++;
+      const lotNum=nextLotNum();
       const thumbUrls=[];
       for(let p=0;p<photosPerLot;p++){
         const blob=blobs[p];
@@ -2503,7 +2518,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.5.2
+  AUCTION MANAGER PRO · V1.5.5
 </div>
 </body>
 </html>
