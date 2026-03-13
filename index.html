@@ -1606,6 +1606,7 @@ function renderLotsGrid(){
       </div>
       <div class="lot-actions" style="display:flex;flex-direction:column;gap:5px">
         <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${lot.id}')">✏️ Edit</button>
+              <button class="btn btn-red btn-sm" onclick="deleteLot('${lot.id}')">🗑️</button>
         <button class="btn btn-red btn-sm" onclick="deleteLot('${lot.id}')">🗑️ Delete</button>
       </div>`;
     grid.appendChild(div);
@@ -1757,7 +1758,7 @@ function saveAllEdits(){
     const ef = document.getElementById(`ef_${lot.id}`);
     if(ef && ef.classList.contains('open')) {
       lot.title = document.getElementById(`etitle_${lot.id}`)?.value || lot.title;
-      lot.description = document.getElementById(`edesc_${lot.id}`)?.value || lot.description;
+      lot.description = lot.title;
       document.getElementById(`lt_${lot.id}`).textContent = lot.title;
       document.getElementById(`ld_${lot.id}`).textContent = lot.description;
       ef.classList.remove('open');
@@ -1862,6 +1863,17 @@ document.getElementById('dl-csv-btn').addEventListener('click',()=>{
 // ============================================================
 // TOTE TRACKER
 // ============================================================
+function deleteSingleLot(lotId, toteKey) {
+  if(!confirm('Delete this lot? This cannot be undone.')) return;
+  state.lots = state.lots.filter(l=>l.id!==lotId);
+  // Update tote lotNums
+  const tote = state.totes.find(t=>t.toteKey===toteKey);
+  if(tote) tote.lotNums = state.lots.filter(l=>l.toteKey===toteKey).map(l=>l.lotNum);
+  saveState();
+  renderTotes();
+  notify('Lot deleted.');
+}
+
 async function deleteTote(toteKey){
   if(!confirm('Delete this tote and all its lots? This cannot be undone.')) return;
   const tote = state.totes.find(t=>t.toteKey===toteKey);
@@ -1906,9 +1918,23 @@ function renderTotes(){
   el.innerHTML=Object.entries(byAuction).map(([auction,totes])=>`
     <div style="margin-bottom:18px">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--text);margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--border)">${auction}</div>
-      <table class="tote-table"><thead><tr><th>Tote</th><th>Lots</th><th>#</th><th>Date</th><th></th></tr></thead><tbody>
-      ${totes.map(t=>`<tr><td><strong>${t.toteLabel}</strong></td><td><span class="lot-range">${Math.min(...t.lotNums)}–${Math.max(...t.lotNums)}</span><div class="lot-pills">${t.lotNums.map(n=>`<span class="lot-pill">${n}</span>`).join('')}</div></td><td>${t.lotNums.length}</td><td>${t.date}</td><td><button class="btn btn-red btn-sm" onclick="deleteTote('${t.toteKey}')">🗑️ Delete</button></td></tr>`).join('')}
-      </tbody></table>
+      ${totes.map(t=>{
+        const lots = state.lots.filter(l=>l.toteKey===t.toteKey).sort((a,b)=>a.lotNum-b.lotNum);
+        return `<div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <strong style="font-size:13px">${t.toteLabel}</strong>
+            <button class="btn btn-red btn-sm" onclick="deleteTote('${t.toteKey}')">🗑️ Delete Tote</button>
+          </div>
+          <table class="tote-table"><thead><tr><th>Lot #</th><th>Title</th><th>Date</th><th></th></tr></thead><tbody>
+          ${lots.map(l=>`<tr>
+            <td><strong>${l.lotNum}</strong></td>
+            <td style="font-size:12px">${l.title||'—'}</td>
+            <td style="font-size:11px;color:var(--muted)">${l.date||''}</td>
+            <td><button class="btn btn-red btn-sm" onclick="deleteSingleLot('${l.id}','${t.toteKey}')">🗑️</button></td>
+          </tr>`).join('')}
+          </tbody></table>
+        </div>`;
+      }).join('')}
     </div>`).join('');
 }
 
@@ -1994,7 +2020,7 @@ function renderHistory(){
   for(const lot of state.lots){
     const key=`${lot.player}__${lot.title}`;
     if(!jerseys[key])jerseys[key]={title:lot.title,player:lot.player||'',team:lot.team||'',appearances:[]};
-    jerseys[key].appearances.push({auction:lot.auctionName,tote:lot.toteLabel,lotNum:lot.lotNum,date:lot.history?.[0]?.date||'',soldStatus:lot.soldStatus});
+    jerseys[key].appearances.push({lotId:lot.id,auction:lot.auctionName,tote:lot.toteLabel,lotNum:lot.lotNum,date:lot.history?.[0]?.date||'',soldStatus:lot.soldStatus});
   }
 
   const filtered=Object.values(jerseys).filter(j=>!q||j.player.toLowerCase().includes(q)||j.team.toLowerCase().includes(q)||j.title.toLowerCase().includes(q)||j.appearances.some(a=>String(a.lotNum).includes(q)));
@@ -2006,7 +2032,7 @@ function renderHistory(){
         <div><div style="font-size:14px;font-weight:600;margin-bottom:2px">${j.title}</div><div style="font-size:11px;color:var(--muted2)">${j.player}${j.team?' · '+j.team:''}</div></div>
         <span class="badge badge-gold">${j.appearances.length}×</span>
       </div>
-      <div>${j.appearances.map(a=>`<span class="auction-tag">${a.auction} · ${a.tote} · Lot ${a.lotNum}${a.soldStatus==='unsold'?' · <span style="color:var(--red)">Unsold</span>':''}</span>`).join('')}</div>
+      <div>${j.appearances.map(a=>`<span class="auction-tag" style="display:inline-flex;align-items:center;gap:6px">${a.auction} · ${a.tote} · Lot ${a.lotNum}${a.soldStatus==='unsold'?' · <span style="color:var(--red)">Unsold</span>':''}<button onclick="deleteLotById('${a.lotId}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0;line-height:1" title="Delete lot">🗑️</button></span>`).join('')}</div>
     </div>`).join('');
 }
 
@@ -2545,7 +2571,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.6.7
+  AUCTION MANAGER PRO · V1.7.0
 </div>
 </body>
 </html>
