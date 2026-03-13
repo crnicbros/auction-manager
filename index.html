@@ -1157,11 +1157,13 @@ Identify:
 3. TEAM MASCOT — just the mascot/nickname (e.g. "Bulls", "Dodgers", "Cowboys") — not the full city name.
 
 Return JSON only, no markdown, no explanation:
-{"player":"Full Name","number":"##","team":"Mascot Only","title":"Full Name Signed Framed Jersey #Number Mascot w/COA","description":"Full Name Signed Framed Jersey #Number Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
+{"player":"Full Name","number":"##","team":"Mascot Only","title":"Full Name Signed Jersey #Number Mascot w/COA","description":"Full Name Signed Framed Jersey #Number Mascot w/COA","hasCOA":true,"indices":[0,1,2,3]}
 
 - indices: order photos as [whole framed jersey, signature close-up, COA sticker, COA card] using 0-3
 - CRITICAL: title and description must be 50 characters or fewer. Full player name always. Mascot only for team.
-- title example: "Michael Jordan Signed Framed Jersey #23 Bulls w/COA"`
+- title example: "Michael Jordan Signed Jersey #23 Bulls w/COA"
+- description example: "Michael Jordan Signed Framed Jersey #23 Bulls w/COA" (same as title but with "Framed" added)
+- description must be 50 characters or fewer`
   }
 };
 
@@ -2503,7 +2505,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.4.9
+  AUCTION MANAGER PRO · V1.5.0
 </div>
 </body>
 </html>
