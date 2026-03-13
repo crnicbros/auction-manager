@@ -1580,10 +1580,7 @@ function renderLotsGrid(){
         <p style="font-size:10px;color:var(--muted);margin-bottom:8px">⠿ Drag photos to reorder · ↺↻ to rotate</p>
 
         <div class="edit-form" id="ef_${lot.id}">
-          <div class="edit-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div class="field"><label class="field-label">Player</label><input type="text" id="ep_${lot.id}" value="${lot.player||''}"/></div>
-            <div class="field"><label class="field-label">Team</label><input type="text" id="et_${lot.id}" value="${lot.team||''}"/></div>
-          </div>
+
           <div class="field"><label class="field-label">Title</label><input type="text" id="etitle_${lot.id}" value="${lot.title||''}"/></div>
           <div class="field" style="display:none"><label class="field-label">Description</label><input type="text" id="edesc_${lot.id}" value="${lot.description||''}"/></div>
           <p class="hint" style="margin-top:4px">Description auto-fills from title when saved.</p>
