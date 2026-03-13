@@ -1446,29 +1446,6 @@ async function findOrCreateFolder(name, parentId=null) {
   return (await createRes.json()).id;
 }
 
-async function updateOrCreateDriveFile(blob, fileName, mimeType, folderId) {
-  // Check if file already exists in folder
-  const q = encodeURIComponent(`name='${fileName.replace(/'/g,"\'")}' and '${folderId}' in parents and trashed=false`);
-  const searchRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
-    { headers: { 'Authorization': 'Bearer ' + accessToken } }
-  );
-  const searchData = await searchRes.json();
-  const existing = searchData.files && searchData.files[0];
-  if(existing) {
-    // Update existing file content in place
-    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media`, {
-      method: 'PATCH',
-      headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': mimeType },
-      body: blob
-    });
-    if(!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
-    return await res.json();
-  } else {
-    return await uploadFileToDrive(blob, fileName, mimeType, folderId);
-  }
-}
-
 async function uploadFileToDrive(blob, fileName, mimeType, folderId) {
   const metadata = { name: fileName, parents: [folderId] };
   const boundary = 'amp_boundary';
@@ -1844,26 +1821,7 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
         btn.textContent = `⏳ Uploading ${uploaded}/${total}...`;
       }
     }
-    btn.textContent = '⏳ Saving spreadsheet...';
-    // Merge processedLots into state.lots before building CSV
-    for(const lot of processedLots) {
-      const si = state.lots.findIndex(l=>l.id===lot.id);
-      if(si >= 0) Object.assign(state.lots[si], lot);
-      else state.lots.push(lot);
-    }
-    saveState();
-    // Upload full auction CSV - use all lots across ALL auctions if auctionName missing
-    const csvAuctionName = auctionName || (processedLots[0] && processedLots[0].auctionName) || '';
-    const allLots = state.lots.filter(l=>l.auctionName===csvAuctionName).sort((a,b)=>a.lotNum-b.lotNum);
-    plog(`📊 Building CSV: ${allLots.length} lots for "${csvAuctionName}" (total in state: ${state.lots.length})`, 'ok');
-    if(!allLots.length) { notify('⚠ No lots found for CSV — check auction name matches', true); }
-    const rows = [['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
-    allLots.forEach(l => rows.push([l.lotNum, l.title, l.description, 1]));
-    const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
-    const csvBlob = new Blob([csv], {type:'text/csv'});
-    const csvFileName = `${csvAuctionName || 'Auction'}.csv`;
-    await updateOrCreateDriveFile(csvBlob, csvFileName, 'text/csv', auctionId);
-    notify(`☁️ ${uploaded} photos + ${allLots.length} lots saved to Drive!`);
+    notify(`☁️ ${uploaded} photos saved to Drive!`);
     // Full reset after successful upload
     document.getElementById('tote-label').value = '';
     document.getElementById('file-input').value = '';
@@ -2102,7 +2060,6 @@ function renderAuctions() {
           <div class="auction-sheet-label">📊 Spreadsheet · ${totalLots} lots</div>
           <button class="btn btn-green btn-sm" onclick="copyAuctionSheet('${auction}')">📋 Copy</button>
           <button class="btn btn-blue btn-sm" onclick="downloadAuctionCsv('${auction}')">⬇️ CSV</button>
-          <button class="btn btn-gold btn-sm" onclick="uploadAuctionCsvToDrive('${auction}')">☁️ Save CSV to Drive</button>
         </div>
 
         <!-- TOTES -->
@@ -2166,25 +2123,6 @@ function copyAuctionSheet(auctionName) {
     const ta=document.createElement('textarea');ta.value=tsv;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
     notify('✅ Copied! Paste directly into Google Sheets.');
   });
-}
-
-async function uploadAuctionCsvToDrive(auctionName) {
-  if(!accessToken){ notify('Sign in with Google first', true); return; }
-  const lots = state.lots.filter(l=>l.auctionName===auctionName).sort((a,b)=>a.lotNum-b.lotNum);
-  if(!lots.length){ notify('No lots to export', true); return; }
-  const rows = [['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
-  lots.forEach(l => rows.push([l.lotNum, l.title, l.description, 1]));
-  const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const blob = new Blob([csv], {type:'text/csv'});
-  try {
-    notify('⏳ Uploading CSV to Drive...');
-    const rootId = await findOrCreateFolder('Auction Manager Pro');
-    const auctionId = await findOrCreateFolder(auctionName, rootId);
-    await updateOrCreateDriveFile(blob, `${auctionName}.csv`, 'text/csv', auctionId);
-    notify(`✅ ${auctionName}.csv saved to Drive!`);
-  } catch(e) {
-    notify('CSV upload failed: ' + e.message, true);
-  }
 }
 
 function downloadAuctionCsv(auctionName) {
@@ -2607,7 +2545,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.6.4
+  AUCTION MANAGER PRO · V1.6.5
 </div>
 </body>
 </html>
