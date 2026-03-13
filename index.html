@@ -1764,7 +1764,6 @@ function saveAllEdits(){
 function saveLotEdit(lotId){
   const idx=getLotIdx(lotId);
   const lot=processedLots[idx];
-  lot.team=document.getElementById(`et_${lotId}`).value;
   lot.title=document.getElementById(`etitle_${lotId}`).value;
   lot.description=lot.title; // auto-fill description from title
   document.getElementById(`lt_${lotId}`).textContent=lot.title;
