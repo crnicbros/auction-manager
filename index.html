@@ -1833,6 +1833,8 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
     // Full reset after successful upload
     document.getElementById('tote-label').value = '';
     document.getElementById('file-input').value = '';
+    document.getElementById('file-info').textContent = '';
+    document.getElementById('clear-photos-btn').style.display = 'none';
     document.getElementById('lots-grid').innerHTML = '';
     document.getElementById('proc-log').style.display = 'none';
     document.getElementById('prog-fill').style.width = '0%';
@@ -2553,7 +2555,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.5.8
+  AUCTION MANAGER PRO · V1.5.9
 </div>
 </body>
 </html>
