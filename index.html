@@ -1446,6 +1446,28 @@ async function findOrCreateFolder(name, parentId=null) {
   return (await createRes.json()).id;
 }
 
+async function updateOrCreateDriveFile(blob, fileName, mimeType, folderId) {
+  // Check if file already exists in folder
+  const searchRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name='${fileName}'+and+'${folderId}'+in+parents+and+trashed=false&fields=files(id,name)`,
+    { headers: { 'Authorization': 'Bearer ' + accessToken } }
+  );
+  const searchData = await searchRes.json();
+  const existing = searchData.files && searchData.files[0];
+  if(existing) {
+    // Update existing file content
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': mimeType },
+      body: blob
+    });
+    if(!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
+    return await res.json();
+  } else {
+    return await uploadFileToDrive(blob, fileName, mimeType, folderId);
+  }
+}
+
 async function uploadFileToDrive(blob, fileName, mimeType, folderId) {
   const metadata = { name: fileName, parents: [folderId] };
   const boundary = 'amp_boundary';
@@ -1828,7 +1850,7 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
     allLots.forEach(l => rows.push([l.lotNum, l.title, l.description, 1]));
     const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
     const csvBlob = new Blob([csv], {type:'text/csv'});
-    await uploadFileToDrive(csvBlob, `${auctionName}.csv`, 'text/csv', auctionId);
+    await updateOrCreateDriveFile(csvBlob, `${auctionName}.csv`, 'text/csv', auctionId);
     notify(`☁️ ${uploaded} photos + spreadsheet saved to Drive!`);
     // Full reset after successful upload
     document.getElementById('tote-label').value = '';
@@ -2128,7 +2150,7 @@ async function uploadAuctionCsvToDrive(auctionName) {
     notify('⏳ Uploading CSV to Drive...');
     const rootId = await findOrCreateFolder('Auction Manager Pro');
     const auctionId = await findOrCreateFolder(auctionName, rootId);
-    await uploadFileToDrive(blob, `${auctionName}.csv`, 'text/csv', auctionId);
+    await updateOrCreateDriveFile(blob, `${auctionName}.csv`, 'text/csv', auctionId);
     notify(`✅ ${auctionName}.csv saved to Drive!`);
   } catch(e) {
     notify('CSV upload failed: ' + e.message, true);
@@ -2555,7 +2577,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.5.9
+  AUCTION MANAGER PRO · V1.6.0
 </div>
 </body>
 </html>
