@@ -1149,6 +1149,8 @@ Return JSON only, no markdown, no explanation:
     slots: ['Whole Framed Jersey', 'Signature Close-up', 'COA Sticker', 'COA Card'],
     prompt: `You are an expert sports memorabilia authenticator. These 4 photos show a signed framed jersey in this order: whole framed jersey, close-up of signature, COA sticker, COA card.
 
+CRITICAL: This item is ALWAYS a framed jersey — nothing else. Do not identify it as a regular jersey, ball, photo, or any other item. The user has already confirmed this is a framed jersey. Your only job is to identify the player, number, and team from inside the frame.
+
 Identify:
 1. PLAYER NAME — from the COA, signature, and jersey nameplate
 2. JERSEY NUMBER — the LARGE digits on the jersey fabric. Read carefully, never guess.
