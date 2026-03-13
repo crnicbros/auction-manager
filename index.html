@@ -1851,14 +1851,18 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
       else state.lots.push(lot);
     }
     saveState();
-    // Upload full auction CSV
-    const allLots = state.lots.filter(l=>l.auctionName===auctionName).sort((a,b)=>a.lotNum-b.lotNum);
+    // Upload full auction CSV - use all lots across ALL auctions if auctionName missing
+    const csvAuctionName = auctionName || (processedLots[0] && processedLots[0].auctionName) || '';
+    const allLots = state.lots.filter(l=>l.auctionName===csvAuctionName).sort((a,b)=>a.lotNum-b.lotNum);
+    plog(`📊 Building CSV: ${allLots.length} lots for "${csvAuctionName}"`, 'ok');
+    if(!allLots.length) { notify('⚠ No lots found for CSV — check auction name matches', true); }
     const rows = [['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
     allLots.forEach(l => rows.push([l.lotNum, l.title, l.description, 1]));
     const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
     const csvBlob = new Blob([csv], {type:'text/csv'});
-    await updateOrCreateDriveFile(csvBlob, `${auctionName}.csv`, 'text/csv', auctionId);
-    notify(`☁️ ${uploaded} photos + spreadsheet saved to Drive!`);
+    const csvFileName = `${csvAuctionName || 'Auction'}.csv`;
+    await updateOrCreateDriveFile(csvBlob, csvFileName, 'text/csv', auctionId);
+    notify(`☁️ ${uploaded} photos + ${allLots.length} lots saved to Drive!`);
     // Full reset after successful upload
     document.getElementById('tote-label').value = '';
     document.getElementById('file-input').value = '';
@@ -2584,7 +2588,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.6.1
+  AUCTION MANAGER PRO · V1.6.2
 </div>
 </body>
 </html>
