@@ -966,10 +966,9 @@ function switchTab(name,btn){
 // PROCESSOR
 // ============================================================
 function updateLastLotHint(){
-  if(!state.lots.length){document.getElementById('last-lot-hint').textContent='—';return;}
+  if(!state.lots.length){return;}
   const max=Math.max(...state.lots.map(l=>l.lotNum));
-  document.getElementById('last-lot-hint').textContent=max;
-  document.getElementById('start-lot').value=max+1;
+  // lot counter auto-detected from state
 }
 
 const dz=document.getElementById('drop-zone');
@@ -1293,7 +1292,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
 
     // Assign lot numbers NOW after sync
     const maxExisting = state.lots.filter(l=>l.auctionName===auctionName).reduce((m,l)=>Math.max(m,l.lotNum||0),0);
-    let lotCounter = Math.max(maxExisting+1, parseInt(document.getElementById('start-lot').value)||1);
+    let lotCounter = maxExisting + 1;
     plog(`📋 Starting at lot ${lotCounter}`);
 
     // First assign carry-forwards
@@ -2469,7 +2468,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.4.4
+  AUCTION MANAGER PRO · V1.4.5
 </div>
 </body>
 </html>
