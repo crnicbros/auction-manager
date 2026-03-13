@@ -1742,8 +1742,6 @@ function saveAllEdits(){
   processedLots.forEach(lot => {
     const ef = document.getElementById(`ef_${lot.id}`);
     if(ef && ef.classList.contains('open')) {
-      lot.player = document.getElementById(`ep_${lot.id}`)?.value || lot.player;
-      lot.team = document.getElementById(`et_${lot.id}`)?.value || lot.team;
       lot.title = document.getElementById(`etitle_${lot.id}`)?.value || lot.title;
       lot.description = document.getElementById(`edesc_${lot.id}`)?.value || lot.description;
       document.getElementById(`lt_${lot.id}`).textContent = lot.title;
@@ -1766,8 +1764,6 @@ function saveAllEdits(){
 function saveLotEdit(lotId){
   const idx=getLotIdx(lotId);
   const lot=processedLots[idx];
-  if(!lot) return;
-  lot.player=document.getElementById(`ep_${lotId}`).value;
   lot.team=document.getElementById(`et_${lotId}`).value;
   lot.title=document.getElementById(`etitle_${lotId}`).value;
   lot.description=lot.title; // auto-fill description from title
