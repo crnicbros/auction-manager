@@ -2583,14 +2583,17 @@ function updateCamUI() {
   if(completedLots > 0) {
     summaryEl.style.display = 'block';
     listEl.innerHTML = '';
+    let lotOffset = 0;
     for(let l = 0; l < completedLots; l++) {
       const lotNum = l + 1;
+      const lotSize = camLotSizes[l]; // use actual size for this lot
       const div = document.createElement('div');
       div.className = 'cam-lot-card';
-      const thumbs = Array.from({length:photosPerLot}, (_,i) => {
-        const p = camPhotos[l*photosPerLot+i];
+      const thumbs = Array.from({length:lotSize}, (_,i) => {
+        const p = camPhotos[lotOffset+i];
         return p ? `<img src="${p.url}"/>` : '<div style="width:32px;height:32px;background:var(--bg4);border-radius:4px"></div>';
       }).join('');
+      lotOffset += lotSize;
       div.innerHTML = `
         <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--gold);min-width:32px">LOT<br>${lotNum}</div>
         <div class="cam-lot-thumbs">${thumbs}</div>
@@ -2675,7 +2678,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.7.6
+  AUCTION MANAGER PRO · V1.7.7
 </div>
 </body>
 </html>
