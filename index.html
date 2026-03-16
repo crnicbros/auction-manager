@@ -1303,9 +1303,15 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
   if(cfForTote.length) plog(`📦 Including ${cfForTote.length} carry-forward items from previous auction`,'warn');
 
   try{
-    const itemType = document.getElementById('item-type').value || 'jersey';
+    const defaultItemType = document.getElementById('item-type').value || 'jersey';
+    // If photos came from camera mode with mixed types, use per-lot type map
+    const lotTypeMap = window.camLotTypeMap || {};
+    const useMixedTypes = Object.keys(lotTypeMap).length > 0;
+    // For uniform processing, use default type; mixed types handled per-lot below
+    const itemType = defaultItemType;
     const photosPerLot = (ITEM_CONFIG[itemType]||ITEM_CONFIG.jersey).photos;
-    const totalLots=Math.floor(allFiles.length/photosPerLot);
+    // For mixed types, calculate total lots from the map
+    const totalLots = useMixedTypes ? Object.keys(lotTypeMap).length : Math.floor(allFiles.length/photosPerLot);
 
     // ---- ADAPTIVE PACING ENGINE ----
     let pace = 2000;
@@ -1351,7 +1357,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
         if(processingAborted) break;
         const t0 = Date.now();
         try{
-          lotData = await callClaude(batchFiles, apiKey, document.getElementById("item-type").value);
+          lotData = await callClaude(batchFiles, apiKey, lotItemType);
           updatePace(Date.now() - t0, false);
           if(attempt > 0) plog('✓ Retry succeeded on attempt ' + (attempt+1), 'ok');
           break;
@@ -1435,19 +1441,21 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     state.carryForward=state.carryForward.filter(c=>c.toteLabel!==toteLabel);
 
     // Now assign lot numbers to analyzed items and build zip
-    const itemCfg = ITEM_CONFIG[itemType] || ITEM_CONFIG.jersey;
+    // itemCfg is now per-lot — set inside the loop below
     for(let i=0;i<analyzedLots.length;i++){
       const {lotData,blobs}=analyzedLots[i];
+      const lotItemCfg = ITEM_CONFIG[lotItemType] || ITEM_CONFIG.jersey;
+      const lotPhotosPerLot = lotItemCfg.photos;
       const lotNum=nextLotNum();
       const thumbUrls=[];
-      for(let p=0;p<photosPerLot;p++){
+      for(let p=0;p<lotPhotosPerLot;p++){
         const blob=blobs[p];
         if(!blob){thumbUrls.push('');continue;}
         zip.file(`${lotNum}-${p+1}.jpg`,blob);
         thumbUrls.push(URL.createObjectURL(blob));
       }
       const lot={id:`lot_${Date.now()}_${i}`,lotNum,auctionName,toteLabel,toteKey,
-        itemType, photoLabels: itemCfg.slots,
+        itemType:lotItemType, photoLabels: lotItemCfg.slots,
         player:lotData.player,team:lotData.team,
         title:(lotData.title||'').slice(0,50),
         description:(lotData.description||'').slice(0,50),
@@ -2352,6 +2360,7 @@ let camFacing = 'environment'; // back camera by default
 let camPhotos = []; // all captured blobs in order
 let camLots = []; // completed lots [{blobs:[b,b,b,b], urls:[u,u,u,u]}]
 let camLotSizes = []; // photosPerLot used for each completed lot
+let camLotTypes = []; // item type used for each completed lot
 // CAM_LABELS is now dynamic — use getItemConfig().slots
 
 function setPhotoMode(mode) {
@@ -2493,13 +2502,15 @@ function camCapture() {
   canvas.toBlob(blob => {
     const url = URL.createObjectURL(blob);
     camPhotos.push({blob, url});
-    // Check if this completes a lot — record its size
+    // Check if this completes a lot — record its size and type
     const _cfg = getItemConfig();
     const _ppl = _cfg.photos;
+    const _type = document.getElementById('item-type')?.value || 'jersey';
     let _used = 0;
     for(const sz of camLotSizes) _used += sz;
     if((camPhotos.length - _used) === _ppl) {
       camLotSizes.push(_ppl);
+      camLotTypes.push(_type);
     }
     updateCamUI();
     // Flash effect
@@ -2515,7 +2526,7 @@ function camUndo() {
   // If we just un-completed a lot, remove its size record
   let usedPhotos = 0;
   for(const sz of camLotSizes) usedPhotos += sz;
-  if(camPhotos.length < usedPhotos) camLotSizes.pop();
+  if(camPhotos.length < usedPhotos) { camLotSizes.pop(); camLotTypes.pop(); }
   updateCamUI();
 }
 
@@ -2524,6 +2535,7 @@ function camClear() {
   camPhotos.forEach(p=>URL.revokeObjectURL(p.url));
   camPhotos = [];
   camLotSizes = [];
+  camLotTypes = [];
   updateCamUI();
 }
 
@@ -2597,7 +2609,7 @@ function updateCamUI() {
       div.innerHTML = `
         <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--gold);min-width:32px">LOT<br>${lotNum}</div>
         <div class="cam-lot-thumbs">${thumbs}</div>
-        <div style="font-size:11px;color:var(--green);margin-left:auto">✓ Complete</div>`;
+        <div style="font-size:11px;color:var(--muted2);margin-left:auto;text-align:right">${(ITEM_CONFIG[camLotTypes[l]]||ITEM_CONFIG.jersey).label}<br><span style="color:var(--green)">✓ Complete</span></div>`;
       listEl.appendChild(div);
     }
   } else {
@@ -2607,11 +2619,14 @@ function updateCamUI() {
 
 async function camFinish() {
   if(camLotSizes.length === 0) { notify('No complete lots captured yet', true); return; }
-  // Group photos by their actual lot sizes (handles mixed 4/5 photo lots)
+  // Group photos by their actual lot sizes and store type metadata
   const files = [];
   let offset = 0;
+  // Store lot type metadata for processor to use
+  window.camLotTypeMap = {}; // lotIndex -> itemType
   for(let l = 0; l < camLotSizes.length; l++) {
     const sz = camLotSizes[l];
+    const startFileIdx = files.length;
     for(let p = 0; p < sz; p++) {
       const photo = camPhotos[offset + p];
       if(photo) {
@@ -2619,6 +2634,7 @@ async function camFinish() {
         files.push(new File([photo.blob], name, {type:'image/jpeg'}));
       }
     }
+    window.camLotTypeMap[l] = camLotTypes[l] || 'jersey';
     offset += sz;
   }
   setPhotoMode('upload');
@@ -2678,7 +2694,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.7.7
+  AUCTION MANAGER PRO · V1.7.8
 </div>
 </body>
 </html>
