@@ -1453,9 +1453,9 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     state.carryForward=state.carryForward.filter(c=>c.toteLabel!==toteLabel);
 
     // Now assign lot numbers to analyzed items and build zip
-    // itemCfg is now per-lot — set inside the loop below
     for(let i=0;i<analyzedLots.length;i++){
       const {lotData,blobs}=analyzedLots[i];
+      const lotItemType = useMixedTypes ? (lotSlices[i]?.type || defaultItemType) : itemType;
       const lotItemCfg = ITEM_CONFIG[lotItemType] || ITEM_CONFIG.jersey;
       const lotPhotosPerLot = lotItemCfg.photos;
       const lotNum=nextLotNum();
@@ -2706,7 +2706,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.8.0
+  AUCTION MANAGER PRO · V1.8.1
 </div>
 </body>
 </html>
