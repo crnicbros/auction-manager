@@ -1391,7 +1391,8 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       plog('✓ Item ' + (i+1) + ': ' + lotData.player + (lotData.number ? ' #'+lotData.number : '') + ' — ' + lotData.team, 'ok');
 
       const blobs=[];
-      for(let p=0;p<photosPerLot;p++){
+      const blobCount = batchFiles.length; // use actual number of files for this lot
+      for(let p=0;p<blobCount;p++){
         const srcIdx=lotData.indices?.[p]??p;
         const file=batchFiles[srcIdx]??batchFiles[p];
         if(!file){blobs.push(null);continue;}
@@ -2706,7 +2707,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.8.1
+  AUCTION MANAGER PRO · V1.8.2
 </div>
 </body>
 </html>
