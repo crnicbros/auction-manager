@@ -1211,6 +1211,68 @@ function stopProcessing() {
   plog('⏹ Stopping after current item finishes...', 'warn');
 }
 
+
+// ============================================================
+// LOT NUMBER RESERVATION — atomic multi-phone safe
+// ============================================================
+async function reserveLotNumbers(auctionName, count) {
+  // Fetch all currently used lot numbers from Sheets for this auction
+  const sheetId = await getMasterSheetId();
+  const res = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${LOTS_TAB}!B2:D`);
+  const rows = res.values || [];
+  const usedNums = new Set();
+  for(const r of rows) {
+    if((r[0]||'') === auctionName) {
+      const n = Number(r[2]);
+      if(n) usedNums.add(n);
+    }
+  }
+  // Also include local state (covers lots not yet synced by this phone)
+  for(const lot of state.lots.filter(l=>l.auctionName===auctionName)) {
+    if(lot.lotNum) usedNums.add(lot.lotNum);
+  }
+  // Find next N available numbers starting from 1
+  const reserved = [];
+  let n = 1;
+  while(reserved.length < count) {
+    if(!usedNums.has(n)) reserved.push(n);
+    n++;
+  }
+  // Write placeholder rows to Sheets immediately to "claim" these numbers
+  // This prevents another phone from grabbing the same numbers
+  const placeholders = reserved.map(num => ['RESERVED', auctionName, '', num, '', '', '⏳ Processing...', '', 'pending', new Date().toLocaleDateString()]);
+  await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${LOTS_TAB}!A2:J${1+placeholders.length}:append`, {
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    values: placeholders
+  });
+  plog(`🔒 Reserved lot numbers: ${reserved.join(', ')}`, 'ok');
+  return reserved;
+}
+
+async function updateReservedLots(auctionName, lots) {
+  // Replace placeholder rows with real lot data
+  const sheetId = await getMasterSheetId();
+  // Clear all rows for this auction then rewrite with full state
+  const res = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${LOTS_TAB}!A2:J`);
+  const rows = res.values || [];
+  // Remove RESERVED placeholders for this auction and rebuild
+  const kept = rows.filter(r => !(r[0]==='RESERVED' && r[1]===auctionName));
+  const allLots = state.lots.filter(l=>l.auctionName===auctionName);
+  const newRows = allLots.map(l=>[l.id||'',l.auctionName||'',l.toteLabel||'',l.lotNum||'',l.player||'',l.team||'',l.title||'',l.description||'',l.soldStatus||'pending',l.date||'']);
+  const otherRows = rows.filter(r => r[1] !== auctionName);
+  const finalRows = [...otherRows, ...newRows];
+  await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchClear`, {
+    ranges: [`${LOTS_TAB}!A2:Z`]
+  });
+  if(finalRows.length) {
+    await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchUpdate`, {
+      valueInputOption: 'RAW',
+      data: [{range: `${LOTS_TAB}!A2`, values: finalRows}]
+    });
+  }
+}
+
 document.getElementById('process-btn').addEventListener('click',async()=>{
   const apiKey=document.getElementById('api-key').value.trim();
   if(!apiKey){notify('Enter your Anthropic API key.',true);return;}
@@ -1330,34 +1392,39 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     setProgress(75,'Getting next lot number...');
     // Get existing lot numbers — use local state (which reflects deletions)
     // Also check Sheets for any lots added by other phones, but don't overwrite local deletions
-    const existingNums = new Set(state.lots.filter(l=>l.auctionName===auctionName).map(l=>l.lotNum));
-    if(accessToken && state.masterSheetId){
-      plog('🔄 Checking Google Sheets for lot numbers from other devices...');
-      try{
-        const sheetId = await getMasterSheetId();
-        const res = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${LOTS_TAB}!A2:D`);
-        const rows = (res.values||[]);
-        let added = 0;
-        for(const r of rows){
-          const lotAuction = r[1]||'';
-          const lotNum = Number(r[3])||0;
-          if(lotAuction === auctionName && lotNum && !existingNums.has(lotNum)){
-            existingNums.add(lotNum);
-            added++;
-          }
+    // Reserve lot numbers atomically in Sheets (multi-phone safe)
+    const totalNeeded = cfForTote.length + analyzedLots.length;
+    let reservedNums = [];
+    if(accessToken && totalNeeded > 0) {
+      plog(`🔒 Reserving ${totalNeeded} lot numbers...`);
+      try {
+        reservedNums = await reserveLotNumbers(auctionName, totalNeeded);
+      } catch(e) {
+        plog('⚠ Could not reserve in Sheets — using local state','warn');
+        const existingNums = new Set(state.lots.filter(l=>l.auctionName===auctionName).map(l=>l.lotNum));
+        let n = 1;
+        while(reservedNums.length < totalNeeded) {
+          if(!existingNums.has(n)) reservedNums.push(n);
+          n++;
         }
-        plog(`✅ Sheets check done — ${existingNums.size} lot numbers reserved (${added} from other devices)`,'ok');
       }
-      catch(e){ plog('⚠ Could not check Sheets — using local lot numbers','warn'); }
+    } else {
+      const existingNums = new Set(state.lots.filter(l=>l.auctionName===auctionName).map(l=>l.lotNum));
+      let n = 1;
+      while(reservedNums.length < totalNeeded) {
+        if(!existingNums.has(n)) reservedNums.push(n);
+        n++;
+      }
     }
-    const maxExisting = existingNums.size ? Math.max(...existingNums) : 0;
-    function nextLotNum() { let n=1; while(existingNums.has(n)) n++; existingNums.add(n); return n; }
-    plog(`📋 Filling gaps from lot 1 (max existing: ${maxExisting})`);
+    let reserveIdx = 0;
+    function nextLotNum() { return reservedNums[reserveIdx++]; }
+    plog(`📋 Assigned lot numbers: ${reservedNums.join(', ')}`);
 
     // First assign carry-forwards
     for(const cf of cfForTote){
-      const lot={...cf,id:`lot_${Date.now()}_cf_${cf.originalLotNum}`,lotNum:nextLotNum(),auctionName,toteLabel,toteKey,
-        history:[...(cf.history||[]),{auction:auctionName,tote:toteLabel,lotNum:nextLotNum(),date:new Date().toLocaleDateString()}],soldStatus:undefined};
+      const ln = nextLotNum();
+      const lot={...cf,id:`lot_${Date.now()}_cf_${cf.originalLotNum}`,lotNum:ln,auctionName,toteLabel,toteKey,
+        history:[...(cf.history||[]),{auction:auctionName,tote:toteLabel,lotNum:ln,date:new Date().toLocaleDateString()}],soldStatus:undefined};
       processedLots.push(lot);lotNums.push(lot.lotNum);
       plog(`↩️ Lot ${lot.lotNum}: ${lot.title} (carried forward)`,'warn');
     }
@@ -1389,12 +1456,19 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       plog(`📋 Lot ${lotNum}: ${lotData.player} — ${lotData.team}`,'ok');
     }
 
-    // Save state
-    state.lots=state.lots.filter(l=>l.toteKey!==toteKey);
+    // Save state - only remove lots from this exact tote (never wipe other totes)
+    if(toteKey && toteKey !== '__') {
+      state.lots = state.lots.filter(l => l.toteKey !== toteKey);
+      state.totes = state.totes.filter(t => t.toteKey !== toteKey);
+    }
     state.lots.push(...processedLots);
-    state.totes=state.totes.filter(t=>t.toteKey!==toteKey);
     state.totes.push({toteKey,auctionName,toteLabel,lotNums,date:new Date().toLocaleDateString()});
     saveState();
+    // Replace placeholder reservations with real lot data in Sheets
+    if(accessToken) {
+      try { await updateReservedLots(auctionName, processedLots); plog('✅ Lot data synced to Sheets','ok'); }
+      catch(e) { plog('⚠ Could not sync to Sheets: '+e.message,'warn'); }
+    }
 
     setProgress(90,'Building ZIP...');
     currentZip=zip;
@@ -2271,6 +2345,7 @@ let camStream = null;
 let camFacing = 'environment'; // back camera by default
 let camPhotos = []; // all captured blobs in order
 let camLots = []; // completed lots [{blobs:[b,b,b,b], urls:[u,u,u,u]}]
+let camLotSizes = []; // photosPerLot used for each completed lot
 // CAM_LABELS is now dynamic — use getItemConfig().slots
 
 function setPhotoMode(mode) {
@@ -2412,6 +2487,14 @@ function camCapture() {
   canvas.toBlob(blob => {
     const url = URL.createObjectURL(blob);
     camPhotos.push({blob, url});
+    // Check if this completes a lot — record its size
+    const _cfg = getItemConfig();
+    const _ppl = _cfg.photos;
+    let _used = 0;
+    for(const sz of camLotSizes) _used += sz;
+    if((camPhotos.length - _used) === _ppl) {
+      camLotSizes.push(_ppl);
+    }
     updateCamUI();
     // Flash effect
     video.style.opacity = '0.3';
@@ -2423,6 +2506,10 @@ function camUndo() {
   if(!camPhotos.length) return;
   const removed = camPhotos.pop();
   URL.revokeObjectURL(removed.url);
+  // If we just un-completed a lot, remove its size record
+  let usedPhotos = 0;
+  for(const sz of camLotSizes) usedPhotos += sz;
+  if(camPhotos.length < usedPhotos) camLotSizes.pop();
   updateCamUI();
 }
 
@@ -2430,6 +2517,7 @@ function camClear() {
   if(camPhotos.length && !confirm('Clear all captured photos?')) return;
   camPhotos.forEach(p=>URL.revokeObjectURL(p.url));
   camPhotos = [];
+  camLotSizes = [];
   updateCamUI();
 }
 
@@ -2438,8 +2526,12 @@ function updateCamUI() {
   const photosPerLot = cfg.photos;
   const slots = cfg.slots;
   const total = camPhotos.length;
-  const currentLotIdx = Math.floor(total / photosPerLot);
-  const currentPhotoInLot = total % photosPerLot;
+  // Calculate position using actual lot sizes (not assumed uniform size)
+  let usedPhotos = 0;
+  for(const sz of camLotSizes) usedPhotos += sz;
+  const photosInCurrentLot = total - usedPhotos;
+  const currentLotIdx = camLotSizes.length;
+  const currentPhotoInLot = photosInCurrentLot;
 
   // Update counters
   document.getElementById('cam-lot-num').textContent = currentLotIdx + 1;
@@ -2462,7 +2554,8 @@ function updateCamUI() {
     strip.removeChild(strip.lastChild);
   }
   // Update strip - show current lot's photos
-  const lotStartIdx = currentLotIdx * photosPerLot;
+  let lotStartIdx = 0;
+  for(const sz of camLotSizes) lotStartIdx += sz;
   for(let i = 0; i < photosPerLot; i++) {
     const slot = strip.children[i];
     const photo = camPhotos[lotStartIdx + i];
@@ -2478,7 +2571,7 @@ function updateCamUI() {
   }
 
   // Show completed lots summary
-  const completedLots = Math.floor(total / photosPerLot);
+  const completedLots = camLotSizes.length;
   const summaryEl = document.getElementById('cam-lots-summary');
   const listEl = document.getElementById('cam-lots-list');
   if(completedLots > 0) {
@@ -2504,16 +2597,21 @@ function updateCamUI() {
 }
 
 async function camFinish() {
-  const cfg = getItemConfig();
-  const photosPerLot = cfg.photos;
-  if(camPhotos.length < photosPerLot) { notify(`Need at least ${photosPerLot} photos (1 lot)`, true); return; }
-  // Only use complete lots
-  const completeLots = Math.floor(camPhotos.length / photosPerLot);
-  const usePhotos = camPhotos.slice(0, completeLots * photosPerLot);
-  const files = await Promise.all(usePhotos.map(async (p, i) => {
-    const name = `cam_photo_${String(i+1).padStart(3,'0')}.jpg`;
-    return new File([p.blob], name, {type:'image/jpeg'});
-  }));
+  if(camLotSizes.length === 0) { notify('No complete lots captured yet', true); return; }
+  // Group photos by their actual lot sizes (handles mixed 4/5 photo lots)
+  const files = [];
+  let offset = 0;
+  for(let l = 0; l < camLotSizes.length; l++) {
+    const sz = camLotSizes[l];
+    for(let p = 0; p < sz; p++) {
+      const photo = camPhotos[offset + p];
+      if(photo) {
+        const name = `cam_photo_${String(files.length+1).padStart(3,'0')}.jpg`;
+        files.push(new File([photo.blob], name, {type:'image/jpeg'}));
+      }
+    }
+    offset += sz;
+  }
   setPhotoMode('upload');
   handleFiles(files);
   notify(`📷 ${files.length} camera photos ready — hit Process!`);
@@ -2571,7 +2669,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.7.0
+  AUCTION MANAGER PRO · V1.7.3
 </div>
 </body>
 </html>
