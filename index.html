@@ -1456,13 +1456,17 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       plog(`📋 Lot ${lotNum}: ${lotData.player} — ${lotData.team}`,'ok');
     }
 
-    // Save state - only remove lots from this exact tote (never wipe other totes)
-    if(toteKey && toteKey !== '__') {
-      state.lots = state.lots.filter(l => l.toteKey !== toteKey);
-      state.totes = state.totes.filter(t => t.toteKey !== toteKey);
-    }
+    // Save state - always ADD to existing lots, never wipe
     state.lots.push(...processedLots);
-    state.totes.push({toteKey,auctionName,toteLabel,lotNums,date:new Date().toLocaleDateString()});
+    // Update tote record — merge lot numbers into existing tote if it exists
+    const existingToteIdx = state.totes.findIndex(t => t.toteKey === toteKey);
+    if(existingToteIdx >= 0) {
+      state.totes[existingToteIdx].lotNums = [
+        ...new Set([...state.totes[existingToteIdx].lotNums, ...lotNums])
+      ].sort((a,b)=>a-b);
+    } else {
+      state.totes.push({toteKey,auctionName,toteLabel,lotNums,date:new Date().toLocaleDateString()});
+    }
     saveState();
     // Replace placeholder reservations with real lot data in Sheets
     if(accessToken) {
@@ -2669,7 +2673,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.7.3
+  AUCTION MANAGER PRO · V1.7.4
 </div>
 </body>
 </html>
