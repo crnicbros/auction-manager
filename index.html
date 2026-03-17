@@ -934,28 +934,35 @@ async function pullFromSheet() {
     } catch(e) { /* Settings sheet may not exist yet */ }
 
     if(lots.length||totes.length) {
-      // Merge Sheets data with local state — never wipe local lots
-      // Local lots take priority (they reflect deletions and edits)
+      // Sheets is the master — sync local state to match Sheets exactly
+      // But keep any local lots that haven't been pushed to Sheets yet (no id match)
+      const sheetIds = new Set(lots.map(l=>l.id));
+      const sheetLotNums = new Set(lots.map(l=>l.auctionName+'__'+l.lotNum));
+      // Keep local lots that are either in Sheets OR are brand new (not yet synced)
+      // A lot is "not yet synced" if it was created very recently (within last 5 min)
+      const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+      state.lots = state.lots.filter(l => {
+        if(sheetIds.has(l.id)) return true; // exists in Sheets — keep
+        if(sheetLotNums.has(l.auctionName+'__'+l.lotNum)) return false; // different id same lot num — Sheets wins
+        // Not in Sheets — keep only if very recently created (not yet synced)
+        const createdAt = parseInt((l.id||'').split('_')[1]||'0');
+        return createdAt > fiveMinAgo;
+      });
+      // Add Sheets lots not in local state
       const localIds = new Set(state.lots.map(l=>l.id));
-      const localLotNums = new Set(state.lots.map(l=>l.auctionName+'__'+l.lotNum));
-      // Add Sheets lots that don't exist locally
       for(const sheetLot of lots) {
-        const key = sheetLot.auctionName+'__'+sheetLot.lotNum;
-        if(!localIds.has(sheetLot.id) && !localLotNums.has(key)) {
-          state.lots.push(sheetLot);
-        }
+        if(!localIds.has(sheetLot.id)) state.lots.push(sheetLot);
       }
-      // Merge totes similarly
-      const localToteKeys = new Set(state.totes.map(t=>t.toteKey));
-      for(const sheetTote of totes) {
-        if(!localToteKeys.has(sheetTote.toteKey)) {
-          state.totes.push(sheetTote);
-        }
-      }
+      // Sync totes from Sheets
+      state.totes = totes;
       saveState();
       updateLastLotHint();
-      notify(`✅ Synced with Google Sheets (${state.lots.length} total lots)`);
+      notify(`✅ Synced with Google Sheets (${state.lots.length} lots)`);
     } else {
+      // Empty Sheets — clear local state too so deletions in Sheets are respected
+      state.lots = [];
+      state.totes = [];
+      saveState();
       notify('Google Sheet connected — starting fresh.');
     }
     setSyncStatus('ok', sheetId);
@@ -2695,7 +2702,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.8.8
+  AUCTION MANAGER PRO · V1.8.9
 </div>
 </body>
 </html>
