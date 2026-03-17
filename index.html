@@ -934,10 +934,27 @@ async function pullFromSheet() {
     } catch(e) { /* Settings sheet may not exist yet */ }
 
     if(lots.length||totes.length) {
-      state.lots=lots; state.totes=totes;
+      // Merge Sheets data with local state — never wipe local lots
+      // Local lots take priority (they reflect deletions and edits)
+      const localIds = new Set(state.lots.map(l=>l.id));
+      const localLotNums = new Set(state.lots.map(l=>l.auctionName+'__'+l.lotNum));
+      // Add Sheets lots that don't exist locally
+      for(const sheetLot of lots) {
+        const key = sheetLot.auctionName+'__'+sheetLot.lotNum;
+        if(!localIds.has(sheetLot.id) && !localLotNums.has(key)) {
+          state.lots.push(sheetLot);
+        }
+      }
+      // Merge totes similarly
+      const localToteKeys = new Set(state.totes.map(t=>t.toteKey));
+      for(const sheetTote of totes) {
+        if(!localToteKeys.has(sheetTote.toteKey)) {
+          state.totes.push(sheetTote);
+        }
+      }
       saveState();
       updateLastLotHint();
-      notify(`✅ Loaded ${lots.length} lots from Google Sheets`);
+      notify(`✅ Synced with Google Sheets (${state.lots.length} total lots)`);
     } else {
       notify('Google Sheet connected — starting fresh.');
     }
@@ -2678,7 +2695,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.8.7
+  AUCTION MANAGER PRO · V1.8.8
 </div>
 </body>
 </html>
