@@ -222,7 +222,7 @@
     <div class="header-title">🔀 Lot Shuffler</div>
     <div class="header-sub">Auction Manager Tools</div>
   </div>
-  <div class="version">V1.0.1</div>
+  <div class="version">V1.0.2</div>
 </div>
 
 <div class="signin-bar">
@@ -670,7 +670,26 @@ async function applyShuffle() {
     }
     const csvText = newRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     await updateFileContent(selectedCsv.id, csvText, 'text/csv');
-    alog('✅ CSV updated with new lot numbers', 'ok');
+    // Verify the update worked by re-fetching
+    const verifyRes = await fetch(`https://www.googleapis.com/drive/v3/files/${selectedCsv.id}?alt=media`, {
+      headers: { 'Authorization': 'Bearer ' + accessToken, 'Cache-Control': 'no-cache' }
+    });
+    const verifyText = await verifyRes.text();
+    const firstDataLine = verifyText.trim().split('\n')[1] || '';
+    const expectedFirst = newRows[1] ? newRows[1].map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',') : '';
+    if(firstDataLine === expectedFirst) {
+      alog('✅ CSV verified and updated in Drive', 'ok');
+    } else {
+      alog('⚠ CSV may not have updated — trying direct text upload...', 'warn');
+      // Fallback: simple media upload
+      const fallbackRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${selectedCsv.id}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'text/csv' },
+        body: csvText
+      });
+      if(fallbackRes.ok) alog('✅ CSV updated via fallback method', 'ok');
+      else alog('❌ CSV update failed — ' + (await fallbackRes.text()), 'err');
+    }
 
     setProgress(100, '✅ Shuffle complete!');
     notify('✅ Shuffle complete! Photos renamed and CSV updated.');
