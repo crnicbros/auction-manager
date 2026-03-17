@@ -1,0 +1,730 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lot Shuffler</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --bg2: #111;
+    --bg3: #1a1a1a;
+    --bg4: #222;
+    --border: #2a2a2a;
+    --border2: #333;
+    --gold: #f0c040;
+    --gold2: #d4a820;
+    --text1: #f0f0f0;
+    --text2: #aaa;
+    --muted: #666;
+    --green: #4caf82;
+    --red: #e05555;
+    --blue: #4a9eda;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text1);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #111 0%, #1a1500 100%);
+    border-bottom: 2px solid var(--gold2);
+    padding: 20px 20px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .header-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .version {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* Sign in */
+  .signin-bar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .user-info { font-size: 13px; color: var(--text2); flex: 1; }
+  .user-info strong { color: var(--text1); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px; padding: 10px 18px; border-radius: 8px; border: none;
+    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
+    letter-spacing: 1px; cursor: pointer; transition: all 0.15s;
+    text-decoration: none; white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-gold { background: var(--gold); color: #111; }
+  .btn-gold:hover:not(:disabled) { background: #ffd060; }
+  .btn-ghost { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
+  .btn-ghost:hover:not(:disabled) { background: var(--bg4); color: var(--text1); }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover:not(:disabled) { background: #f06060; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover:not(:disabled) { background: #5dbf92; }
+  .btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
+
+  /* Main */
+  .main { padding: 20px; max-width: 600px; margin: 0 auto; }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 1px;
+    color: var(--gold);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .field { margin-bottom: 12px; }
+  .field-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    color: var(--text1); font-size: 14px; font-family: 'DM Sans', sans-serif;
+  }
+
+  /* Step indicator */
+  .steps {
+    display: flex; gap: 0; margin-bottom: 20px;
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .step {
+    flex: 1; padding: 10px 8px; text-align: center;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted);
+    background: var(--bg2); border-right: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+  .step:last-child { border-right: none; }
+  .step.active { background: var(--gold); color: #111; }
+  .step.done { background: var(--bg3); color: var(--green); }
+
+  /* File picker */
+  .picker-btn {
+    width: 100%; padding: 14px; border-radius: 8px;
+    background: var(--bg3); border: 1px dashed var(--border2);
+    color: var(--text2); font-size: 14px; cursor: pointer;
+    text-align: center; transition: all 0.15s;
+  }
+  .picker-btn:hover { border-color: var(--gold2); color: var(--gold); }
+  .picker-btn.selected { border-color: var(--green); color: var(--green); background: rgba(76,175,130,0.05); }
+
+  /* Preview table */
+  .preview-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+  .preview-table th {
+    text-align: left; padding: 6px 8px;
+    color: var(--muted); font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    font-family: 'DM Sans', sans-serif; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .preview-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+  .preview-table tr:last-child td { border-bottom: none; }
+  .lot-num { color: var(--gold); font-weight: 500; }
+  .arrow { color: var(--muted); }
+  .new-num { color: var(--green); font-weight: 500; }
+
+  /* Log */
+  .log {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 12px;
+  }
+  .log .ok { color: var(--green); }
+  .log .warn { color: var(--gold); }
+  .log .err { color: var(--red); }
+
+  /* Progress */
+  .prog-bar {
+    height: 6px; background: var(--bg3); border-radius: 3px;
+    margin: 10px 0; overflow: hidden;
+  }
+  .prog-fill {
+    height: 100%; background: var(--gold); border-radius: 3px;
+    transition: width 0.3s; width: 0%;
+  }
+
+  /* Notify */
+  #notify {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--bg3); border: 1px solid var(--border2);
+    padding: 10px 20px; border-radius: 10px; font-size: 13px;
+    max-width: 90vw; text-align: center; z-index: 999;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+  #notify.show { opacity: 1; }
+  #notify.err { border-color: var(--red); color: var(--red); }
+
+  .empty { text-align: center; color: var(--muted); padding: 30px; font-size: 14px; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+  }
+  .badge-gold { background: rgba(240,192,64,0.15); color: var(--gold); }
+  .badge-green { background: rgba(76,175,130,0.15); color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">🔀 Lot Shuffler</div>
+    <div class="header-sub">Auction Manager Tools</div>
+  </div>
+  <div class="version">V1.0.0</div>
+</div>
+
+<div class="signin-bar">
+  <div class="user-info" id="user-info">Not signed in to Google</div>
+  <button class="btn btn-gold btn-sm" id="signin-btn" onclick="signIn()">🔑 Sign in with Google</button>
+  <button class="btn btn-ghost btn-sm" id="signout-btn" style="display:none" onclick="signOut()">Sign Out</button>
+</div>
+
+<div class="main">
+
+  <div class="steps">
+    <div class="step active" id="s1">1. Select Files</div>
+    <div class="step" id="s2">2. Preview</div>
+    <div class="step" id="s3">3. Shuffle</div>
+  </div>
+
+  <!-- STEP 1: Select CSV and Photo Folder -->
+  <div id="step1">
+    <div class="card">
+      <div class="card-title">📊 Select CSV File</div>
+      <div class="field-label">Choose your auction CSV from Google Drive</div>
+      <button class="picker-btn" id="csv-picker-btn" onclick="pickCsvFromDrive()">
+        📂 Browse Google Drive for CSV...
+      </button>
+      <div id="csv-info" style="margin-top:8px;font-size:13px;color:var(--text2)"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🖼️ Select Photo Folder</div>
+      <div class="field-label">Choose your "All Photos" folder from Google Drive</div>
+      <button class="picker-btn" id="folder-picker-btn" onclick="pickFolderFromDrive()">
+        📁 Browse Google Drive for Folder...
+      </button>
+      <div id="folder-info" style="margin-top:8px;font-size:13px;color:var(--text2)"></div>
+    </div>
+
+    <button class="btn btn-gold" style="width:100%" id="preview-btn" onclick="previewShuffle()" disabled>
+      👁️ Preview Shuffle
+    </button>
+  </div>
+
+  <!-- STEP 2: Preview -->
+  <div id="step2" style="display:none">
+    <div class="card">
+      <div class="card-title">👁️ Shuffle Preview</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
+        <span id="preview-count"></span> lots will be renumbered. Old → New:
+      </div>
+      <div style="max-height:300px;overflow-y:auto">
+        <table class="preview-table">
+          <thead>
+            <tr>
+              <th>Old Lot</th>
+              <th>Title</th>
+              <th></th>
+              <th>New Lot</th>
+            </tr>
+          </thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-ghost" style="flex:1" onclick="reshuffleShuffle()">🔀 Reshuffle</button>
+      <button class="btn btn-gold" style="flex:2" onclick="goToStep3()">✅ Looks Good — Apply</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="backToStep1()">← Back</button>
+  </div>
+
+  <!-- STEP 3: Apply -->
+  <div id="step3" style="display:none">
+    <div class="card">
+      <div class="card-title">🔀 Applying Shuffle</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px" id="apply-status">Ready to shuffle.</div>
+      <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+      <div class="log" id="apply-log"></div>
+    </div>
+    <button class="btn btn-gold" style="width:100%;margin-top:4px" id="apply-btn" onclick="applyShuffle()">
+      ⚡ Apply Shuffle Now
+    </button>
+    <button class="btn btn-ghost btn-sm" style="margin-top:10px" id="back-btn2" onclick="backToStep2()">← Back</button>
+  </div>
+
+</div>
+
+<div id="notify"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const CLIENT_ID = '580017475226-n9t1nhl3jf2eqk3jcdfepc2va1tqlf57.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets';
+
+let accessToken = null;
+let userEmail = '';
+let selectedCsv = null;   // {id, name}
+let selectedFolder = null; // {id, name}
+let csvData = [];          // parsed rows [{oldLot, title, description, startingBid}]
+let shuffleMap = [];       // [{oldLot, newLot, title, description, startingBid}]
+let driveFiles = [];       // all files in the photo folder
+
+// ============================================================
+// AUTH
+// ============================================================
+window.addEventListener('load', () => {
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const token = hash.get('access_token');
+  if(token) {
+    accessToken = token;
+    localStorage.setItem('shuffler_token', token);
+    localStorage.setItem('shuffler_token_expiry', Date.now() + 55 * 60 * 1000);
+    window.history.replaceState(null, '', window.location.pathname);
+    fetchUserInfo();
+  } else {
+    const stored = localStorage.getItem('shuffler_token');
+    const expiry = parseInt(localStorage.getItem('shuffler_token_expiry') || '0');
+    if(stored && Date.now() < expiry) {
+      accessToken = stored;
+      fetchUserInfo();
+    }
+  }
+});
+
+function signIn() {
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: window.location.origin + window.location.pathname,
+    response_type: 'token',
+    scope: SCOPES,
+  });
+  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+}
+
+function signOut() {
+  accessToken = null;
+  localStorage.removeItem('shuffler_token');
+  localStorage.removeItem('shuffler_token_expiry');
+  document.getElementById('user-info').textContent = 'Not signed in to Google';
+  document.getElementById('signin-btn').style.display = '';
+  document.getElementById('signout-btn').style.display = 'none';
+}
+
+async function fetchUserInfo() {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    const info = await res.json();
+    userEmail = info.email || '';
+    document.getElementById('user-info').innerHTML = `Signed in as <strong>${userEmail}</strong>`;
+    document.getElementById('signin-btn').style.display = 'none';
+    document.getElementById('signout-btn').style.display = '';
+  } catch(e) {
+    signOut();
+  }
+}
+
+async function gapi(method, url, body) {
+  if(!accessToken) { notify('Sign in with Google first', true); throw new Error('Not signed in'); }
+  const opts = { method, headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' } };
+  if(body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if(r.status === 401) { signOut(); throw new Error('Session expired — please sign in again'); }
+  if(!r.ok) { const e = await r.json(); throw new Error(e.error?.message || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+// ============================================================
+// NOTIFY
+// ============================================================
+let notifyTimer;
+function notify(msg, isErr=false) {
+  const el = document.getElementById('notify');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(notifyTimer);
+  notifyTimer = setTimeout(() => el.className = '', 3500);
+}
+
+// ============================================================
+// STEP 1: PICK FILES
+// ============================================================
+async function pickCsvFromDrive() {
+  if(!accessToken) { notify('Sign in with Google first', true); return; }
+  try {
+    const q = encodeURIComponent(`mimeType='text/csv' and trashed=false`);
+    const res = await gapi('GET', `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,parents)&orderBy=modifiedTime desc&pageSize=50`);
+    const files = res.files || [];
+    if(!files.length) { notify('No CSV files found in Drive', true); return; }
+    showFilePicker('Select CSV File', files, (file) => {
+      selectedCsv = file;
+      document.getElementById('csv-picker-btn').textContent = `✅ ${file.name}`;
+      document.getElementById('csv-picker-btn').classList.add('selected');
+      document.getElementById('csv-info').textContent = `Selected: ${file.name}`;
+      checkReadyToPreview();
+    });
+  } catch(e) { notify('Error browsing Drive: ' + e.message, true); }
+}
+
+async function pickFolderFromDrive() {
+  if(!accessToken) { notify('Sign in with Google first', true); return; }
+  try {
+    const q = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const res = await gapi('GET', `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=name&pageSize=100`);
+    const folders = res.files || [];
+    if(!folders.length) { notify('No folders found in Drive', true); return; }
+    showFilePicker('Select Photo Folder', folders, (folder) => {
+      selectedFolder = folder;
+      document.getElementById('folder-picker-btn').textContent = `✅ ${folder.name}`;
+      document.getElementById('folder-picker-btn').classList.add('selected');
+      document.getElementById('folder-info').textContent = `Selected: ${folder.name}`;
+      checkReadyToPreview();
+    });
+  } catch(e) { notify('Error browsing Drive: ' + e.message, true); }
+}
+
+function checkReadyToPreview() {
+  document.getElementById('preview-btn').disabled = !(selectedCsv && selectedFolder);
+}
+
+// Simple picker modal
+function showFilePicker(title, items, onSelect) {
+  const existing = document.getElementById('file-picker-modal');
+  if(existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'file-picker-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:560px;max-height:70vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:16px 18px;border-bottom:1px solid var(--border);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--gold);display:flex;justify-content:space-between;align-items:center">
+        ${title}
+        <button onclick="document.getElementById('file-picker-modal').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:8px">
+        ${items.map(f => `
+          <div onclick="pickItem('${f.id}','${f.name.replace(/'/g,"\\'")}',${items.indexOf(f)})" 
+               style="padding:12px 14px;border-radius:8px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;transition:background 0.1s"
+               onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+            ${f.name}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  window._pickerItems = items;
+  window._pickerCallback = onSelect;
+}
+
+function pickItem(id, name, idx) {
+  document.getElementById('file-picker-modal')?.remove();
+  window._pickerCallback({id, name});
+}
+
+// ============================================================
+// STEP 2: PREVIEW SHUFFLE
+// ============================================================
+async function previewShuffle() {
+  if(!selectedCsv || !selectedFolder) return;
+  document.getElementById('preview-btn').disabled = true;
+  document.getElementById('preview-btn').textContent = '⏳ Loading...';
+  try {
+    // Fetch CSV content
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${selectedCsv.id}?alt=media`, {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    const text = await res.text();
+    csvData = parseCsv(text);
+    if(!csvData.length) { notify('CSV appears empty or invalid', true); return; }
+    buildShuffleMap();
+    renderPreview();
+    document.getElementById('step1').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+    setStep(2);
+  } catch(e) {
+    notify('Error loading CSV: ' + e.message, true);
+  }
+  document.getElementById('preview-btn').disabled = false;
+  document.getElementById('preview-btn').textContent = '👁️ Preview Shuffle';
+}
+
+function parseCsv(text) {
+  const lines = text.trim().split('\n');
+  if(lines.length < 2) return [];
+  // Skip header row
+  return lines.slice(1).map(line => {
+    const cols = parseCsvLine(line);
+    return {
+      oldLot: Number(cols[0]) || 0,
+      title: cols[1] || '',
+      description: cols[2] || '',
+      startingBid: cols[3] || '1'
+    };
+  }).filter(r => r.oldLot > 0);
+}
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for(let i = 0; i < line.length; i++) {
+    if(line[i] === '"') {
+      if(inQuotes && line[i+1] === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if(line[i] === ',' && !inQuotes) {
+      result.push(current); current = '';
+    } else {
+      current += line[i];
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function buildShuffleMap() {
+  // Shuffle the indices
+  const indices = csvData.map((_, i) => i);
+  for(let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  // Sort old lots to get sequential new numbers
+  const sortedOldLots = [...csvData].sort((a,b) => a.oldLot - b.oldLot).map(r => r.oldLot);
+  shuffleMap = indices.map((srcIdx, newIdx) => ({
+    oldLot: csvData[srcIdx].oldLot,
+    newLot: sortedOldLots[newIdx],
+    title: csvData[srcIdx].title,
+    description: csvData[srcIdx].description,
+    startingBid: csvData[srcIdx].startingBid
+  }));
+}
+
+function reshuffleShuffle() {
+  buildShuffleMap();
+  renderPreview();
+}
+
+function renderPreview() {
+  document.getElementById('preview-count').textContent = shuffleMap.length;
+  const tbody = document.getElementById('preview-tbody');
+  tbody.innerHTML = shuffleMap.map(r => `
+    <tr>
+      <td class="lot-num">${r.oldLot}</td>
+      <td style="color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</td>
+      <td class="arrow">→</td>
+      <td class="new-num">${r.newLot}</td>
+    </tr>`).join('');
+}
+
+function goToStep3() {
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step3').style.display = 'block';
+  setStep(3);
+}
+
+function backToStep1() {
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  setStep(1);
+}
+
+function backToStep2() {
+  document.getElementById('step3').style.display = 'none';
+  document.getElementById('step2').style.display = 'block';
+  setStep(2);
+}
+
+// ============================================================
+// STEP 3: APPLY SHUFFLE
+// ============================================================
+function alog(msg, type='') {
+  const log = document.getElementById('apply-log');
+  const d = document.createElement('div');
+  d.className = type;
+  d.textContent = msg;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setProgress(pct, msg) {
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('apply-status').textContent = msg;
+}
+
+async function applyShuffle() {
+  document.getElementById('apply-btn').disabled = true;
+  document.getElementById('back-btn2').disabled = true;
+  document.getElementById('apply-log').innerHTML = '';
+  setProgress(0, 'Starting...');
+
+  try {
+    // 1. List all files in photo folder
+    alog('📁 Loading photo files from Drive...');
+    setProgress(5, 'Loading photo files...');
+    driveFiles = await listAllFilesInFolder(selectedFolder.id);
+    alog(`✅ Found ${driveFiles.length} photo files`, 'ok');
+
+    // 2. Build old→new lot number map
+    const lotMap = {};
+    for(const entry of shuffleMap) lotMap[entry.oldLot] = entry.newLot;
+
+    // 3. Rename photo files using temp names first to avoid conflicts
+    alog('🔄 Renaming photos (step 1/2 — temp names)...');
+    const total = driveFiles.length;
+    let done = 0;
+
+    // First pass: rename all to temp names to avoid number conflicts
+    for(const file of driveFiles) {
+      const match = file.name.match(/^(\d+)-(\d+)(\.\w+)$/);
+      if(!match) { alog(`⚠ Skipping ${file.name} (unexpected format)`, 'warn'); done++; continue; }
+      const oldLot = Number(match[1]);
+      const photoNum = match[2];
+      const ext = match[3];
+      if(lotMap[oldLot] === undefined) { alog(`⚠ No mapping for lot ${oldLot} — skipping`, 'warn'); done++; continue; }
+      await renameFile(file.id, `TEMP_${oldLot}_${photoNum}${ext}`);
+      done++;
+      setProgress(5 + Math.round(done/total*40), `Renaming ${done}/${total}...`);
+    }
+
+    // Second pass: rename from temp to final names
+    alog('🔄 Renaming photos (step 2/2 — final names)...');
+    done = 0;
+    const updatedFiles = await listAllFilesInFolder(selectedFolder.id);
+    for(const file of updatedFiles) {
+      const match = file.name.match(/^TEMP_(\d+)_(\d+)(\.\w+)$/);
+      if(!match) continue;
+      const oldLot = Number(match[1]);
+      const photoNum = match[2];
+      const ext = match[3];
+      const newLot = lotMap[oldLot];
+      if(newLot === undefined) continue;
+      await renameFile(file.id, `${newLot}-${photoNum}${ext}`);
+      done++;
+      setProgress(45 + Math.round(done/updatedFiles.length*40), `Finalizing ${done}/${updatedFiles.length}...`);
+      alog(`✅ ${oldLot}-${photoNum}${ext} → ${newLot}-${photoNum}${ext}`, 'ok');
+    }
+
+    // 4. Update CSV
+    alog('📊 Updating CSV...');
+    setProgress(85, 'Updating CSV...');
+    const newRows = [['LOT NUMBER', 'LOT TITLE', 'LOT DESCRIPTION', 'STARTING BID']];
+    const sorted = [...shuffleMap].sort((a,b) => a.newLot - b.newLot);
+    for(const r of sorted) {
+      newRows.push([r.newLot, r.title, r.description, r.startingBid]);
+    }
+    const csvText = newRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    await updateFileContent(selectedCsv.id, csvText, 'text/csv');
+    alog('✅ CSV updated with new lot numbers', 'ok');
+
+    setProgress(100, '✅ Shuffle complete!');
+    notify('✅ Shuffle complete! Photos renamed and CSV updated.');
+    document.getElementById('apply-btn').textContent = '✅ Done!';
+
+  } catch(e) {
+    alog('❌ Error: ' + e.message, 'err');
+    setProgress(0, 'Error — see log above');
+    notify('Shuffle failed: ' + e.message, true);
+    document.getElementById('apply-btn').disabled = false;
+    document.getElementById('back-btn2').disabled = false;
+    document.getElementById('apply-btn').textContent = '⚡ Retry';
+  }
+}
+
+async function listAllFilesInFolder(folderId) {
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+  let files = [];
+  let pageToken = null;
+  do {
+    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=1000${pageToken?'&pageToken='+pageToken:''}`;
+    const res = await gapi('GET', url);
+    files = files.concat(res.files || []);
+    pageToken = res.nextPageToken;
+  } while(pageToken);
+  return files;
+}
+
+async function renameFile(fileId, newName) {
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newName })
+  });
+}
+
+async function updateFileContent(fileId, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': mimeType },
+    body: blob
+  });
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function setStep(n) {
+  for(let i = 1; i <= 3; i++) {
+    const el = document.getElementById('s'+i);
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+</script>
+</body>
+</html>
