@@ -222,7 +222,7 @@
     <div class="header-title">🔀 Lot Shuffler</div>
     <div class="header-sub">Auction Manager Tools</div>
   </div>
-  <div class="version">V1.0.5</div>
+  <div class="version">V1.0.7</div>
 </div>
 
 <div class="signin-bar">
@@ -277,6 +277,7 @@
             <tr>
               <th>Old Lot</th>
               <th>Title</th>
+              <th>Tote</th>
               <th></th>
               <th>New Lot</th>
             </tr>
@@ -431,14 +432,14 @@ async function pickCsvFromDrive() {
       if(!csvFiles.length) { notify(`No files found in ${auctionFolder.name}`, true); return; }
       if(csvFiles.length === 1) {
         const file = csvFiles[0];
-        selectedCsv = file;
+        selectedCsv = {...file};
         document.getElementById('csv-picker-btn').textContent = `✅ ${auctionFolder.name} / ${file.name}`;
         document.getElementById('csv-picker-btn').classList.add('selected');
         document.getElementById('csv-info').textContent = `${auctionFolder.name} → ${file.name}`;
         checkReadyToPreview();
       } else {
         showFilePicker('Select CSV', csvFiles, (file) => {
-          selectedCsv = file;
+          selectedCsv = {...file, mimeType: csvFiles.find(f=>f.id===file.id)?.mimeType || ''};
           document.getElementById('csv-picker-btn').textContent = `✅ ${auctionFolder.name} / ${file.name}`;
           document.getElementById('csv-picker-btn').classList.add('selected');
           document.getElementById('csv-info').textContent = `${auctionFolder.name} → ${file.name}`;
@@ -535,11 +536,20 @@ async function previewShuffle() {
   document.getElementById('preview-btn').disabled = true;
   document.getElementById('preview-btn').textContent = '⏳ Loading...';
   try {
-    // Fetch CSV content
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${selectedCsv.id}?alt=media`, {
-      headers: { 'Authorization': 'Bearer ' + accessToken }
-    });
-    const text = await res.text();
+    // Fetch CSV content — handle both real CSV and Google Sheets files
+    let text;
+    if(selectedCsv.mimeType === 'application/vnd.google-apps.spreadsheet') {
+      // Export Google Sheets as CSV
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${selectedCsv.id}/export?mimeType=text/csv`, {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      text = await res.text();
+    } else {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${selectedCsv.id}?alt=media`, {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      text = await res.text();
+    }
     csvData = parseCsv(text);
     if(!csvData.length) { notify('CSV appears empty or invalid', true); return; }
     buildShuffleMap();
@@ -558,11 +568,13 @@ function parseCsv(text) {
   const lines = text.trim().split('\n');
   if(lines.length < 2) return [];
   // Parse header to find column positions
-  const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase().replace(/[^a-z]/g,''));
-  const lotCol = header.findIndex(h => h.includes('lot') && h.includes('num')) ?? 0;
-  const titleCol = header.findIndex(h => h.includes('title')) ?? 1;
-  const descCol = header.findIndex(h => h.includes('desc')) ?? 2;
-  const bidCol = header.findIndex(h => h.includes('bid') || h.includes('start')) ?? 3;
+  const headerRaw = parseCsvLine(lines[0]);
+  const header = headerRaw.map(h => h.trim().toLowerCase().replace(/[^a-z]/g,''));
+  const lotCol = header.findIndex(h => h.includes('lot') && h.includes('num'));
+  const titleCol = header.findIndex(h => h.includes('title'));
+  const descCol = header.findIndex(h => h.includes('desc'));
+  const bidCol = header.findIndex(h => h.includes('bid') || h.includes('start'));
+  const toteCol = header.findIndex(h => h.includes('tote'));
   return lines.slice(1).map(line => {
     if(!line.trim()) return null;
     const cols = parseCsvLine(line);
@@ -570,7 +582,8 @@ function parseCsv(text) {
       oldLot: Number(cols[lotCol >= 0 ? lotCol : 0]) || 0,
       title: cols[titleCol >= 0 ? titleCol : 1] || '',
       description: cols[descCol >= 0 ? descCol : 2] || '',
-      startingBid: cols[bidCol >= 0 ? bidCol : 3] || '1'
+      startingBid: cols[bidCol >= 0 ? bidCol : 3] || '1',
+      tote: toteCol >= 0 ? (cols[toteCol] || '') : ''
     };
   }).filter(r => r && r.oldLot > 0);
 }
@@ -607,7 +620,8 @@ function buildShuffleMap() {
     newLot: sortedOldLots[newIdx],
     title: csvData[srcIdx].title,
     description: csvData[srcIdx].description,
-    startingBid: csvData[srcIdx].startingBid
+    startingBid: csvData[srcIdx].startingBid,
+    tote: csvData[srcIdx].tote || ''
   }));
 }
 
@@ -622,7 +636,8 @@ function renderPreview() {
   tbody.innerHTML = shuffleMap.map(r => `
     <tr>
       <td class="lot-num">${r.oldLot}</td>
-      <td style="color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</td>
+      <td style="color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</td>
+      <td style="color:var(--muted);font-size:11px">${r.tote}</td>
       <td class="arrow">→</td>
       <td class="new-num">${r.newLot}</td>
     </tr>`).join('');
@@ -719,13 +734,17 @@ async function applyShuffle() {
     // 4. Update CSV
     alog('📊 Updating CSV...');
     setProgress(85, 'Updating CSV...');
-    const newRows = [['LOT NUMBER', 'LOT TITLE', 'LOT DESCRIPTION', 'STARTING BID']];
+    const newRows = [['LOT NUMBER', 'LOT TITLE', 'LOT DESCRIPTION', 'STARTING BID', 'TOTE']];
     const sorted = [...shuffleMap].sort((a,b) => a.newLot - b.newLot);
     for(const r of sorted) {
-      newRows.push([r.newLot, r.title, r.description, r.startingBid]);
+      newRows.push([r.newLot, r.title, r.description, r.startingBid, r.tote]);
     }
     const csvText = newRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-    await updateFileContent(selectedCsv.id, csvText, 'text/csv');
+    if(selectedCsv.mimeType === 'application/vnd.google-apps.spreadsheet') {
+      await updateGoogleSheet(selectedCsv.id, sorted);
+    } else {
+      await updateFileContent(selectedCsv.id, csvText, 'text/csv');
+    }
     // Verify the update worked by re-fetching
     const verifyRes = await fetch(`https://www.googleapis.com/drive/v3/files/${selectedCsv.id}?alt=media`, {
       headers: { 'Authorization': 'Bearer ' + accessToken, 'Cache-Control': 'no-cache' }
@@ -779,6 +798,19 @@ async function renameFile(fileId, newName) {
     method: 'PATCH',
     headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newName })
+  });
+}
+
+async function updateGoogleSheet(fileId, rows) {
+  // Clear existing data and write new rows via Sheets API
+  await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values:batchClear`, {
+    ranges: ['A:Z']
+  });
+  const values = [['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID','TOTE']];
+  for(const r of rows) values.push([r.newLot, r.title, r.description, r.startingBid, r.tote]);
+  await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values:batchUpdate`, {
+    valueInputOption: 'RAW',
+    data: [{ range: 'A1', values }]
   });
 }
 
