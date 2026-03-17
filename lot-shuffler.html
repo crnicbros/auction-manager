@@ -222,7 +222,7 @@
     <div class="header-title">🔀 Lot Shuffler</div>
     <div class="header-sub">Auction Manager Tools</div>
   </div>
-  <div class="version">V1.0.3</div>
+  <div class="version">V1.0.4</div>
 </div>
 
 <div class="signin-bar">
@@ -423,14 +423,13 @@ async function pickCsvFromDrive() {
     const auctionFolders = auctionRes.files || [];
     if(!auctionFolders.length) { notify('No auction folders found inside Auction Manager Pro', true); return; }
 
-    // Show auction folders, then find CSV inside
+    // Show auction folders, then find any files inside
     showFilePicker('Select Auction', auctionFolders, async (auctionFolder) => {
-      const csvQ = encodeURIComponent(`'${auctionFolder.id}' in parents and mimeType='text/csv' and trashed=false`);
-      const csvRes = await gapi('GET', `https://www.googleapis.com/drive/v3/files?q=${csvQ}&fields=files(id,name)&pageSize=20`);
+      const csvQ = encodeURIComponent(`'${auctionFolder.id}' in parents and trashed=false and mimeType != 'application/vnd.google-apps.folder'`);
+      const csvRes = await gapi('GET', `https://www.googleapis.com/drive/v3/files?q=${csvQ}&fields=files(id,name,mimeType)&orderBy=name&pageSize=20`);
       const csvFiles = csvRes.files || [];
-      if(!csvFiles.length) { notify(`No CSV found in ${auctionFolder.name}`, true); return; }
+      if(!csvFiles.length) { notify(`No files found in ${auctionFolder.name}`, true); return; }
       if(csvFiles.length === 1) {
-        // Auto-select if only one
         const file = csvFiles[0];
         selectedCsv = file;
         document.getElementById('csv-picker-btn').textContent = `✅ ${auctionFolder.name} / ${file.name}`;
@@ -440,7 +439,7 @@ async function pickCsvFromDrive() {
       } else {
         showFilePicker('Select CSV', csvFiles, (file) => {
           selectedCsv = file;
-          document.getElementById('csv-picker-btn').textContent = `✅ ${file.name}`;
+          document.getElementById('csv-picker-btn').textContent = `✅ ${auctionFolder.name} / ${file.name}`;
           document.getElementById('csv-picker-btn').classList.add('selected');
           document.getElementById('csv-info').textContent = `${auctionFolder.name} → ${file.name}`;
           checkReadyToPreview();
@@ -466,19 +465,28 @@ async function pickFolderFromDrive() {
     const auctionFolders = auctionRes.files || [];
     if(!auctionFolders.length) { notify('No auction folders found inside Auction Manager Pro', true); return; }
 
-    // Show auction folders, then drill into All Photos
+    // Show auction folders, then show all subfolders to pick from
     showFilePicker('Select Auction', auctionFolders, async (auctionFolder) => {
-      // Get All Photos folder inside that auction
-      const photosQ = encodeURIComponent(`'${auctionFolder.id}' in parents and name='All Photos' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-      const photosRes = await gapi('GET', `https://www.googleapis.com/drive/v3/files?q=${photosQ}&fields=files(id,name)&pageSize=5`);
+      const photosQ = encodeURIComponent(`'${auctionFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+      const photosRes = await gapi('GET', `https://www.googleapis.com/drive/v3/files?q=${photosQ}&fields=files(id,name)&orderBy=name&pageSize=50`);
       const photosFolders = photosRes.files || [];
-      if(!photosFolders.length) { notify(`No "All Photos" folder found in ${auctionFolder.name}`, true); return; }
-      const folder = photosFolders[0];
-      selectedFolder = folder;
-      document.getElementById('folder-picker-btn').textContent = `✅ ${auctionFolder.name} / All Photos`;
-      document.getElementById('folder-picker-btn').classList.add('selected');
-      document.getElementById('folder-info').textContent = `${auctionFolder.name} → All Photos`;
-      checkReadyToPreview();
+      if(!photosFolders.length) { notify(`No folders found in ${auctionFolder.name}`, true); return; }
+      if(photosFolders.length === 1) {
+        const folder = photosFolders[0];
+        selectedFolder = folder;
+        document.getElementById('folder-picker-btn').textContent = `✅ ${auctionFolder.name} / ${folder.name}`;
+        document.getElementById('folder-picker-btn').classList.add('selected');
+        document.getElementById('folder-info').textContent = `${auctionFolder.name} → ${folder.name}`;
+        checkReadyToPreview();
+      } else {
+        showFilePicker('Select Photo Folder', photosFolders, (folder) => {
+          selectedFolder = folder;
+          document.getElementById('folder-picker-btn').textContent = `✅ ${auctionFolder.name} / ${folder.name}`;
+          document.getElementById('folder-picker-btn').classList.add('selected');
+          document.getElementById('folder-info').textContent = `${auctionFolder.name} → ${folder.name}`;
+          checkReadyToPreview();
+        });
+      }
     });
   } catch(e) { notify('Error browsing Drive: ' + e.message, true); }
 }
