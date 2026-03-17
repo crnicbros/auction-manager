@@ -222,7 +222,7 @@
     <div class="header-title">🔀 Lot Shuffler</div>
     <div class="header-sub">Auction Manager Tools</div>
   </div>
-  <div class="version">V1.0.4</div>
+  <div class="version">V1.0.5</div>
 </div>
 
 <div class="signin-bar">
@@ -557,16 +557,22 @@ async function previewShuffle() {
 function parseCsv(text) {
   const lines = text.trim().split('\n');
   if(lines.length < 2) return [];
-  // Skip header row
+  // Parse header to find column positions
+  const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase().replace(/[^a-z]/g,''));
+  const lotCol = header.findIndex(h => h.includes('lot') && h.includes('num')) ?? 0;
+  const titleCol = header.findIndex(h => h.includes('title')) ?? 1;
+  const descCol = header.findIndex(h => h.includes('desc')) ?? 2;
+  const bidCol = header.findIndex(h => h.includes('bid') || h.includes('start')) ?? 3;
   return lines.slice(1).map(line => {
+    if(!line.trim()) return null;
     const cols = parseCsvLine(line);
     return {
-      oldLot: Number(cols[0]) || 0,
-      title: cols[1] || '',
-      description: cols[2] || '',
-      startingBid: cols[3] || '1'
+      oldLot: Number(cols[lotCol >= 0 ? lotCol : 0]) || 0,
+      title: cols[titleCol >= 0 ? titleCol : 1] || '',
+      description: cols[descCol >= 0 ? descCol : 2] || '',
+      startingBid: cols[bidCol >= 0 ? bidCol : 3] || '1'
     };
-  }).filter(r => r.oldLot > 0);
+  }).filter(r => r && r.oldLot > 0);
 }
 
 function parseCsvLine(line) {
