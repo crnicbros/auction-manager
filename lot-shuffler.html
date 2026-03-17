@@ -222,7 +222,7 @@
     <div class="header-title">🔀 Lot Shuffler</div>
     <div class="header-sub">Auction Manager Tools</div>
   </div>
-  <div class="version">V1.0.0</div>
+  <div class="version">V1.0.1</div>
 </div>
 
 <div class="signin-bar">
@@ -709,11 +709,34 @@ async function renameFile(fileId, newName) {
 
 async function updateFileContent(fileId, content, mimeType) {
   const blob = new Blob([content], { type: mimeType });
-  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+  const boundary = 'csv_boundary_xyz';
+  const metaPart = `--${boundary}
+Content-Type: application/json
+
+${JSON.stringify({mimeType})}
+`;
+  const dataPart = `--${boundary}
+Content-Type: ${mimeType}
+
+`;
+  const endPart = `
+--${boundary}--`;
+  const metaBytes = new TextEncoder().encode(metaPart);
+  const dataBytes = new TextEncoder().encode(dataPart);
+  const contentBytes = new Uint8Array(await blob.arrayBuffer());
+  const endBytes = new TextEncoder().encode(endPart);
+  const combined = new Uint8Array(metaBytes.length + dataBytes.length + contentBytes.length + endBytes.length);
+  combined.set(metaBytes, 0);
+  combined.set(dataBytes, metaBytes.length);
+  combined.set(contentBytes, metaBytes.length + dataBytes.length);
+  combined.set(endBytes, metaBytes.length + dataBytes.length + contentBytes.length);
+  const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
     method: 'PATCH',
-    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': mimeType },
-    body: blob
+    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body: combined
   });
+  if(!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
+  return res.json();
 }
 
 // ============================================================
