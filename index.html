@@ -1126,33 +1126,16 @@ async function pullFromSheet() {
     } catch(e) { /* Settings sheet may not exist yet */ }
 
     if(lots.length||totes.length) {
-      const sheetIds = new Set(lots.map(l=>l.id));
-      // Only remove local lots that exist in Sheets by ID but were explicitly deleted
-      // (i.e. they have an ID that Sheets knows about, but Sheets no longer has them)
-      // Keep ALL local lots that Sheets has never seen (no matching ID in Sheets)
-      const sheetsKnowsAbout = new Set(lots.map(l=>l.id));
-      // Build set of IDs Sheets has ever had — we track this in state
-      if(!state.sheetKnownIds) state.sheetKnownIds = [];
-      // Any ID previously seen in Sheets that is now gone = deleted in Sheets
-      const deletedInSheets = new Set(state.sheetKnownIds.filter(id => !sheetsKnowsAbout.has(id)));
-      // Update known IDs
-      state.sheetKnownIds = [...sheetsKnowsAbout];
-      // Remove locally deleted lots
-      state.lots = state.lots.filter(l => !deletedInSheets.has(l.id));
-      // Add Sheets lots not in local state
-      const localIds = new Set(state.lots.map(l=>l.id));
-      for(const sheetLot of lots) {
-        if(!localIds.has(sheetLot.id)) state.lots.push(sheetLot);
-      }
-      // Merge totes — add from Sheets, don't remove local ones
-      const localToteKeys = new Set(state.totes.map(t=>t.toteKey));
-      for(const sheetTote of totes) {
-        if(!localToteKeys.has(sheetTote.toteKey)) state.totes.push(sheetTote);
-      }
+      // Sheets is master — replace local state exactly
+      state.lots = lots;
+      state.totes = totes;
       saveState();
       updateLastLotHint();
       notify(`✅ Synced with Google Sheets (${state.lots.length} lots)`);
     } else {
+      state.lots = [];
+      state.totes = [];
+      saveState();
       notify('Google Sheet connected — starting fresh.');
     }
     setSyncStatus('ok', sheetId);
@@ -2945,7 +2928,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.9.8
+  AUCTION MANAGER PRO · V2.0.0
 </div>
 </body>
 </html>
