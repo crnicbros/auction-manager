@@ -2208,14 +2208,50 @@ function renderAuctions() {
   }).join('');
 }
 
-function deleteAuction(auctionName) {
+async function deleteAuction(auctionName) {
   if(!confirm(`Delete entire auction "${auctionName}" and all its lots and totes? This cannot be undone.`)) return;
+  // Remove from local state
+  const deletedIds = state.lots.filter(l=>l.auctionName===auctionName).map(l=>l.id);
   state.lots = state.lots.filter(l=>l.auctionName!==auctionName);
   state.totes = state.totes.filter(t=>t.auctionName!==auctionName);
-  if(state.sheetIds) delete state.sheetIds[auctionName];
+  // Remove from known sheet IDs so sync doesn't restore them
+  if(state.sheetKnownIds) state.sheetKnownIds = state.sheetKnownIds.filter(id=>!deletedIds.includes(id));
   saveState();
   renderAuctions();
   notify(`${auctionName} deleted.`);
+  // Delete from Google Sheets
+  if(accessToken && state.masterSheetId) {
+    try {
+      const sheetId = state.masterSheetId;
+      // Get all rows from Lots and Totes tabs
+      const res = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?ranges=${LOTS_TAB}!A2:Z&ranges=${TOTES_TAB}!A2:Z`);
+      const [lotsData, totesData] = res.valueRanges || [];
+      const lotRows = lotsData?.values || [];
+      const toteRows = totesData?.values || [];
+      // Find rows to delete (match by auction name column)
+      const lotDeleteRows = lotRows.map((r,i)=>r[1]===auctionName?i+2:null).filter(Boolean).reverse();
+      const toteDeleteRows = toteRows.map((r,i)=>r[1]===auctionName?i+2:null).filter(Boolean).reverse();
+      // Get sheet tab IDs
+      const sheetMeta = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties)`);
+      const sheets = sheetMeta.sheets || [];
+      const getTabId = name => sheets.find(s=>s.properties.title===name)?.properties.sheetId;
+      const lotsTabId = getTabId(LOTS_TAB);
+      const totesTabId = getTabId(TOTES_TAB);
+      const requests = [];
+      for(const row of lotDeleteRows) {
+        if(lotsTabId!=null) requests.push({deleteDimension:{range:{sheetId:lotsTabId,dimension:'ROWS',startIndex:row-1,endIndex:row}}});
+      }
+      for(const row of toteDeleteRows) {
+        if(totesTabId!=null) requests.push({deleteDimension:{range:{sheetId:totesTabId,dimension:'ROWS',startIndex:row-1,endIndex:row}}});
+      }
+      if(requests.length) {
+        await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {requests});
+        notify(`✅ ${auctionName} deleted from app and Google Sheets`);
+      }
+    } catch(e) {
+      notify('Deleted locally but could not remove from Sheets: ' + e.message, true);
+    }
+  }
 }
 
 async function downloadToteZip(auctionName, toteLabel, toteKey) {
@@ -2700,7 +2736,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.9.0
+  AUCTION MANAGER PRO · V1.9.1
 </div>
 </body>
 </html>
