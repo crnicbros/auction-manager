@@ -189,6 +189,83 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:999px}
 </style>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAXpSSWdfp2di7PDkPcHwSosb1eJb_7i14",
+    authDomain: "auction-manager-pro.firebaseapp.com",
+    projectId: "auction-manager-pro",
+    storageBucket: "auction-manager-pro.firebasestorage.app",
+    messagingSenderId: "454435192662",
+    appId: "1:454435192662:web:4796c0276fe7610c76a0f7"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const storage = getStorage(app);
+
+  // Session ID for this tote session
+  function getSessionId() {
+    let sid = sessionStorage.getItem('fb_session_id');
+    if(!sid) { sid = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); sessionStorage.setItem('fb_session_id', sid); }
+    return sid;
+  }
+
+  // Upload a photo blob to Firebase
+  window.fbUploadPhoto = async function(blob, filename) {
+    const sid = getSessionId();
+    const storageRef = ref(storage, `sessions/${sid}/${filename}`);
+    await uploadBytes(storageRef, blob);
+    return getDownloadURL(storageRef);
+  };
+
+  // List all photos in current session
+  window.fbListPhotos = async function() {
+    const sid = getSessionId();
+    const listRef = ref(storage, `sessions/${sid}`);
+    try {
+      const res = await listAll(listRef);
+      return res.items.map(item => item.name);
+    } catch(e) { return []; }
+  };
+
+  // Get download URL for a photo
+  window.fbGetPhotoUrl = async function(filename) {
+    const sid = getSessionId();
+    const storageRef = ref(storage, `sessions/${sid}/${filename}`);
+    return getDownloadURL(storageRef);
+  };
+
+  // Delete all photos in current session
+  window.fbClearSession = async function() {
+    const sid = getSessionId();
+    const listRef = ref(storage, `sessions/${sid}`);
+    try {
+      const res = await listAll(listRef);
+      await Promise.all(res.items.map(item => deleteObject(item)));
+    } catch(e) { console.log('Clear session error:', e); }
+    sessionStorage.removeItem('fb_session_id');
+  };
+
+  // Restore session photos
+  window.fbRestoreSession = async function() {
+    const sid = sessionStorage.getItem('fb_session_id');
+    if(!sid) return [];
+    const listRef = ref(storage, `sessions/${sid}`);
+    try {
+      const res = await listAll(listRef);
+      if(!res.items.length) return [];
+      const items = await Promise.all(res.items.map(async item => ({
+        name: item.name,
+        url: await getDownloadURL(item)
+      })));
+      return items.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+    } catch(e) { return []; }
+  };
+
+  console.log('Firebase Storage ready');
+</script>
 </head>
 <body>
 
@@ -511,6 +588,61 @@ let accessToken=null;
 let userInfo=null;
 let allFiles=[];
 let processedLots=[];
+
+// Firebase session metadata
+function fbSaveSessionMeta() {
+  const meta = {
+    auctionName: document.getElementById('auction-name')?.value || '',
+    toteLabel: document.getElementById('tote-label')?.value || '',
+    itemType: document.getElementById('item-type')?.value || 'jersey',
+    camLotSizes: JSON.stringify(camLotSizes || []),
+    camLotTypes: JSON.stringify(camLotTypes || []),
+    timestamp: Date.now()
+  };
+  sessionStorage.setItem('fb_session_meta', JSON.stringify(meta));
+}
+
+async function fbCheckRestore() {
+  if(!window.fbRestoreSession) return;
+  const metaStr = sessionStorage.getItem('fb_session_meta');
+  if(!metaStr) return;
+  const meta = JSON.parse(metaStr);
+  // Only restore if session is less than 2 hours old
+  if(Date.now() - meta.timestamp > 2 * 60 * 60 * 1000) return;
+  const photos = await window.fbRestoreSession();
+  if(!photos || photos.length === 0) return;
+  // Ask user if they want to restore
+  if(!confirm(`📷 You have ${photos.length} unsaved photos from a previous session (${meta.auctionName} · ${meta.toteLabel}). Restore them?`)) return;
+  // Restore auction/tote fields
+  if(meta.auctionName) document.getElementById('auction-name').value = meta.auctionName;
+  if(meta.toteLabel) document.getElementById('tote-label').value = meta.toteLabel;
+  if(meta.itemType) { document.getElementById('item-type').value = meta.itemType; document.getElementById('photo-size-field').style.display = meta.itemType === 'photo' ? 'block' : 'none'; }
+  // Restore camera photos
+  if(photos.some(p => p.name.startsWith('cam_'))) {
+    const camPhotosToRestore = photos.filter(p => p.name.startsWith('cam_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+    for(const p of camPhotosToRestore) {
+      const resp = await fetch(p.url);
+      const blob = await resp.blob();
+      camPhotos.push({blob, url: URL.createObjectURL(blob)});
+    }
+    if(meta.camLotSizes) camLotSizes = JSON.parse(meta.camLotSizes);
+    if(meta.camLotTypes) camLotTypes = JSON.parse(meta.camLotTypes);
+    setPhotoMode('camera');
+    updateCamUI();
+    notify(`✅ Restored ${camPhotos.length} camera photos!`);
+  }
+  // Restore uploaded files
+  if(photos.some(p => p.name.startsWith('upload_'))) {
+    const uploadPhotos = photos.filter(p => p.name.startsWith('upload_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+    const files = await Promise.all(uploadPhotos.map(async (p, i) => {
+      const resp = await fetch(p.url);
+      const blob = await resp.blob();
+      return new File([blob], p.name, {type: 'image/jpeg'});
+    }));
+    handleFiles(files);
+    notify(`✅ Restored ${files.length} uploaded photos!`);
+  }
+}
 let processingAborted=false;
 let currentZip=null;
 let currentCsv='';
@@ -639,6 +771,8 @@ window.onload = () => {
     // Only pull from sheet if local data is empty
     if(!state.lots.length && !state.totes.length) setTimeout(()=>pullFromSheet(), 500);
     else setSyncStatus('ok', state.masterSheetId);
+    // Check for Firebase session to restore
+    setTimeout(fbCheckRestore, 1000);
   } else {
     (document.getElementById('signin-banner')||{style:{}}).style.display = 'flex';
   }
@@ -1043,6 +1177,13 @@ function handleFiles(files){
   document.getElementById('process-btn').disabled=n===0;
   document.getElementById('clear-photos-btn').style.display=n?'inline-flex':'none';
   setStep(2);
+  // Save uploaded files to Firebase
+  if(window.fbUploadPhoto && n > 0) {
+    allFiles.forEach((file, i) => {
+      window.fbUploadPhoto(file, `upload_${String(i+1).padStart(4,'0')}_${file.name}`).catch(e => console.log('FB upload error:', e));
+    });
+    fbSaveSessionMeta();
+  }
 }
 
 function clearPhotos(){
@@ -1917,6 +2058,9 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
       }
     }
     notify(`☁️ ${uploaded} photos saved to Drive!`);
+    // Clear Firebase session after successful Drive upload
+    if(window.fbClearSession) window.fbClearSession().catch(e => console.log('FB clear error:', e));
+    sessionStorage.removeItem('fb_session_meta');
     // Full reset after successful upload
     document.getElementById('tote-label').value = '';
     document.getElementById('file-input').value = '';
@@ -2544,6 +2688,13 @@ function camCapture() {
   canvas.toBlob(blob => {
     const url = URL.createObjectURL(blob);
     camPhotos.push({blob, url});
+    // Save to Firebase immediately
+    const photoIdx = camPhotos.length;
+    if(window.fbUploadPhoto) {
+      window.fbUploadPhoto(blob, `cam_${String(photoIdx).padStart(4,'0')}.jpg`).catch(e => console.log('FB upload error:', e));
+    }
+    // Save session metadata
+    fbSaveSessionMeta();
     // Check if this completes a lot — record its size and type
     const _cfg = getItemConfig();
     const _ppl = _cfg.photos;
@@ -2736,7 +2887,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.9.1
+  AUCTION MANAGER PRO · V1.9.2
 </div>
 </body>
 </html>
