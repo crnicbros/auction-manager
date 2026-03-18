@@ -773,28 +773,37 @@ window.onload = () => {
     if(meta.auctionName) document.getElementById('auction-name').value = meta.auctionName;
     if(meta.toteLabel) document.getElementById('tote-label').value = meta.toteLabel;
     if(meta.itemType) { document.getElementById('item-type').value = meta.itemType; document.getElementById('photo-size-field').style.display = meta.itemType === 'photo' ? 'block' : 'none'; }
+    // Switch to processor tab first
+    const procTab = document.querySelector('.tab-btn[onclick*="processor"]');
+    if(procTab) procTab.click();
+
     if(photos.some(p => p.name.startsWith('cam_'))) {
       const camPhotosToRestore = photos.filter(p => p.name.startsWith('cam_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+      notify(`⏳ Restoring ${camPhotosToRestore.length} camera photos...`);
       for(const p of camPhotosToRestore) {
         const resp = await fetch(p.url);
         const blob = await resp.blob();
         camPhotos.push({blob, url: URL.createObjectURL(blob)});
       }
-      if(meta.camLotSizes) camLotSizes = JSON.parse(meta.camLotSizes);
-      if(meta.camLotTypes) camLotTypes = JSON.parse(meta.camLotTypes);
+      if(meta.camLotSizes) try { camLotSizes = JSON.parse(meta.camLotSizes); } catch(e) { camLotSizes = []; }
+      if(meta.camLotTypes) try { camLotTypes = JSON.parse(meta.camLotTypes); } catch(e) { camLotTypes = []; }
+      // Switch to camera mode and update UI
       setPhotoMode('camera');
+      await new Promise(r => setTimeout(r, 300));
       updateCamUI();
+      notify(`✅ Restored ${camPhotos.length} camera photos! Tap Use Camera to continue.`);
     }
     if(photos.some(p => p.name.startsWith('upload_'))) {
       const uploadPhotos = photos.filter(p => p.name.startsWith('upload_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+      notify(`⏳ Restoring ${uploadPhotos.length} uploaded photos...`);
       const files = await Promise.all(uploadPhotos.map(async p => {
         const resp = await fetch(p.url);
         const blob = await resp.blob();
         return new File([blob], p.name, {type: 'image/jpeg'});
       }));
       handleFiles(files);
+      notify(`✅ Restored ${files.length} uploaded photos! Hit Process when ready.`);
     }
-    notify(`✅ Restored ${photos.length} photos!`);
   }, 2000);
   // Restore saved Google session if available
   const savedToken = localStorage.getItem('g_access_token');
@@ -2927,7 +2936,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.9.4
+  AUCTION MANAGER PRO · V1.9.5
 </div>
 </body>
 </html>
