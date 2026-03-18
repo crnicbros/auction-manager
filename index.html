@@ -758,13 +758,18 @@ window.addEventListener('DOMContentLoaded', function handleOAuthRedirect() {
 window.onload = () => {
   // Check for Firebase photo restore immediately on load
   setTimeout(async () => {
-    if(!window.fbRestoreSession) return;
+    console.log('FB restore check starting...');
+    console.log('fbRestoreSession available:', !!window.fbRestoreSession);
     const metaStr = localStorage.getItem('fb_session_meta');
-    if(!metaStr) return;
+    console.log('Session meta:', metaStr);
+    if(!window.fbRestoreSession) { console.log('FB not ready yet'); return; }
+    if(!metaStr) { console.log('No session meta found'); return; }
     const meta = JSON.parse(metaStr);
-    if(Date.now() - meta.timestamp > 2 * 60 * 60 * 1000) return;
+    if(Date.now() - meta.timestamp > 2 * 60 * 60 * 1000) { console.log('Session too old'); return; }
+    console.log('Fetching photos from Firebase...');
     const photos = await window.fbRestoreSession();
-    if(!photos || !photos.length) return;
+    console.log('Photos found:', photos?.length, photos);
+    if(!photos || !photos.length) { console.log('No photos in Firebase'); return; }
     if(!confirm(`📷 You have ${photos.length} unsaved photos from a previous session (${meta.auctionName} · ${meta.toteLabel}). Restore them?`)) {
       localStorage.removeItem('fb_session_meta');
       localStorage.removeItem('fb_session_id');
@@ -804,7 +809,7 @@ window.onload = () => {
       handleFiles(files);
       notify(`✅ Restored ${files.length} uploaded photos! Hit Process when ready.`);
     }
-  }, 2000);
+  }, 4000);
   // Restore saved Google session if available
   const savedToken = localStorage.getItem('g_access_token');
   const savedUser = localStorage.getItem('g_user');
@@ -2936,7 +2941,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.9.5
+  AUCTION MANAGER PRO · V1.9.6
 </div>
 </body>
 </html>
