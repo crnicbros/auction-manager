@@ -207,8 +207,8 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 
   // Session ID for this tote session
   function getSessionId() {
-    let sid = sessionStorage.getItem('fb_session_id');
-    if(!sid) { sid = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); sessionStorage.setItem('fb_session_id', sid); }
+    let sid = localStorage.getItem('fb_session_id');
+    if(!sid) { sid = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('fb_session_id', sid); }
     return sid;
   }
 
@@ -245,12 +245,12 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
       const res = await listAll(listRef);
       await Promise.all(res.items.map(item => deleteObject(item)));
     } catch(e) { console.log('Clear session error:', e); }
-    sessionStorage.removeItem('fb_session_id');
+    localStorage.removeItem('fb_session_id');
   };
 
   // Restore session photos
   window.fbRestoreSession = async function() {
-    const sid = sessionStorage.getItem('fb_session_id');
+    const sid = localStorage.getItem('fb_session_id');
     if(!sid) return [];
     const listRef = ref(storage, `sessions/${sid}`);
     try {
@@ -599,12 +599,12 @@ function fbSaveSessionMeta() {
     camLotTypes: JSON.stringify(camLotTypes || []),
     timestamp: Date.now()
   };
-  sessionStorage.setItem('fb_session_meta', JSON.stringify(meta));
+  localStorage.setItem('fb_session_meta', JSON.stringify(meta));
 }
 
 async function fbCheckRestore() {
   if(!window.fbRestoreSession) return;
-  const metaStr = sessionStorage.getItem('fb_session_meta');
+  const metaStr = localStorage.getItem('fb_session_meta');
   if(!metaStr) return;
   const meta = JSON.parse(metaStr);
   // Only restore if session is less than 2 hours old
@@ -756,6 +756,46 @@ window.addEventListener('DOMContentLoaded', function handleOAuthRedirect() {
 });
 
 window.onload = () => {
+  // Check for Firebase photo restore immediately on load
+  setTimeout(async () => {
+    if(!window.fbRestoreSession) return;
+    const metaStr = localStorage.getItem('fb_session_meta');
+    if(!metaStr) return;
+    const meta = JSON.parse(metaStr);
+    if(Date.now() - meta.timestamp > 2 * 60 * 60 * 1000) return;
+    const photos = await window.fbRestoreSession();
+    if(!photos || !photos.length) return;
+    if(!confirm(`📷 You have ${photos.length} unsaved photos from a previous session (${meta.auctionName} · ${meta.toteLabel}). Restore them?`)) {
+      localStorage.removeItem('fb_session_meta');
+      localStorage.removeItem('fb_session_id');
+      return;
+    }
+    if(meta.auctionName) document.getElementById('auction-name').value = meta.auctionName;
+    if(meta.toteLabel) document.getElementById('tote-label').value = meta.toteLabel;
+    if(meta.itemType) { document.getElementById('item-type').value = meta.itemType; document.getElementById('photo-size-field').style.display = meta.itemType === 'photo' ? 'block' : 'none'; }
+    if(photos.some(p => p.name.startsWith('cam_'))) {
+      const camPhotosToRestore = photos.filter(p => p.name.startsWith('cam_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+      for(const p of camPhotosToRestore) {
+        const resp = await fetch(p.url);
+        const blob = await resp.blob();
+        camPhotos.push({blob, url: URL.createObjectURL(blob)});
+      }
+      if(meta.camLotSizes) camLotSizes = JSON.parse(meta.camLotSizes);
+      if(meta.camLotTypes) camLotTypes = JSON.parse(meta.camLotTypes);
+      setPhotoMode('camera');
+      updateCamUI();
+    }
+    if(photos.some(p => p.name.startsWith('upload_'))) {
+      const uploadPhotos = photos.filter(p => p.name.startsWith('upload_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+      const files = await Promise.all(uploadPhotos.map(async p => {
+        const resp = await fetch(p.url);
+        const blob = await resp.blob();
+        return new File([blob], p.name, {type: 'image/jpeg'});
+      }));
+      handleFiles(files);
+    }
+    notify(`✅ Restored ${photos.length} photos!`);
+  }, 2000);
   // Restore saved Google session if available
   const savedToken = localStorage.getItem('g_access_token');
   const savedUser = localStorage.getItem('g_user');
@@ -2060,7 +2100,7 @@ document.getElementById('save-drive-btn').addEventListener('click', async () => 
     notify(`☁️ ${uploaded} photos saved to Drive!`);
     // Clear Firebase session after successful Drive upload
     if(window.fbClearSession) window.fbClearSession().catch(e => console.log('FB clear error:', e));
-    sessionStorage.removeItem('fb_session_meta');
+    localStorage.removeItem('fb_session_meta');
     // Full reset after successful upload
     document.getElementById('tote-label').value = '';
     document.getElementById('file-input').value = '';
@@ -2887,7 +2927,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.9.2
+  AUCTION MANAGER PRO · V1.9.4
 </div>
 </body>
 </html>
