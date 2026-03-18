@@ -597,6 +597,7 @@ function fbSaveSessionMeta() {
     itemType: document.getElementById('item-type')?.value || 'jersey',
     camLotSizes: JSON.stringify(camLotSizes || []),
     camLotTypes: JSON.stringify(camLotTypes || []),
+    totalPhotos: camPhotos.length,
     timestamp: Date.now()
   };
   localStorage.setItem('fb_session_meta', JSON.stringify(meta));
@@ -785,18 +786,23 @@ window.onload = () => {
     if(photos.some(p => p.name.startsWith('cam_'))) {
       const camPhotosToRestore = photos.filter(p => p.name.startsWith('cam_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
       notify(`⏳ Restoring ${camPhotosToRestore.length} camera photos...`);
+      // Restore lot size/type arrays first
+      if(meta.camLotSizes) try { camLotSizes = JSON.parse(meta.camLotSizes); } catch(e) { camLotSizes = []; }
+      if(meta.camLotTypes) try { camLotTypes = JSON.parse(meta.camLotTypes); } catch(e) { camLotTypes = []; }
+      // Restore all photos
       for(const p of camPhotosToRestore) {
         const resp = await fetch(p.url);
         const blob = await resp.blob();
         camPhotos.push({blob, url: URL.createObjectURL(blob)});
       }
-      if(meta.camLotSizes) try { camLotSizes = JSON.parse(meta.camLotSizes); } catch(e) { camLotSizes = []; }
-      if(meta.camLotTypes) try { camLotTypes = JSON.parse(meta.camLotTypes); } catch(e) { camLotTypes = []; }
       // Switch to camera mode and update UI
       setPhotoMode('camera');
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 500));
       updateCamUI();
-      notify(`✅ Restored ${camPhotos.length} camera photos! Tap Use Camera to continue.`);
+      const completedLots = camLotSizes.length;
+      let usedPhotos = camLotSizes.reduce((a,b)=>a+b,0);
+      const remainingPhotos = camPhotos.length - usedPhotos;
+      notify(`✅ Restored ${camPhotos.length} photos — ${completedLots} complete lots + ${remainingPhotos} in progress. Tap Use Camera to continue.`);
     }
     if(photos.some(p => p.name.startsWith('upload_'))) {
       const uploadPhotos = photos.filter(p => p.name.startsWith('upload_')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
@@ -2941,7 +2947,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V1.9.6
+  AUCTION MANAGER PRO · V1.9.7
 </div>
 </body>
 </html>
