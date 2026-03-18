@@ -1069,26 +1069,45 @@ async function pushToSheet() {
   setSyncStatus('syncing');
   try {
     const sheetId = await getMasterSheetId();
-    // Save API key to sheet too
+    // Save API key to sheet
     const apiKeyVal = document.getElementById('api-key').value.trim();
     if(apiKeyVal) {
       try {
         await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchUpdate`, {
           valueInputOption:'RAW', data:[{range:'Settings!A1:B2', values:[['KEY','VALUE'],['anthropic_api_key', apiKeyVal]]}]
         });
-      } catch(e) { /* Settings sheet may not exist yet, ignore */ }
+      } catch(e) { /* ignore */ }
     }
-    const lotRows = state.lots.map(l=>[l.id||'',l.auctionName||'',l.toteLabel||'',l.lotNum||'',l.player||'',l.team||'',l.title||'',l.description||'',l.soldStatus||'pending',l.date||'']);
-    const toteRows = state.totes.map(t=>[t.toteKey||'',t.auctionName||'',t.toteLabel||'',(t.lotNums||[]).join(','),t.lotNums&&t.lotNums.length?Math.min(...t.lotNums):'',t.lotNums&&t.lotNums.length?Math.max(...t.lotNums):'',t.date||'']);
-    const histRows = state.lots.map(l=>[l.id||'',l.auctionName||'',l.lotNum||'',l.title||'',l.soldStatus||'pending',l.date||'']);
-    await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchClear`, {
-      ranges:[`${LOTS_TAB}!A2:Z`,`${TOTES_TAB}!A2:Z`,`${HISTORY_TAB}!A2:Z`]
-    });
-    const data=[];
-    if(lotRows.length) data.push({range:`${LOTS_TAB}!A2`,values:lotRows});
-    if(toteRows.length) data.push({range:`${TOTES_TAB}!A2`,values:toteRows});
-    if(histRows.length) data.push({range:`${HISTORY_TAB}!A2`,values:histRows});
-    if(data.length) await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchUpdate`, {valueInputOption:'RAW',data});
+    // Only APPEND new lots — never clear and rewrite (that would undo Sheets edits/deletions)
+    // Get existing lot IDs from Sheets first
+    const existingRes = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${LOTS_TAB}!A2:A`);
+    const existingIds = new Set((existingRes.values||[]).map(r=>r[0]).filter(Boolean));
+    // Only add lots that aren't already in Sheets
+    const newLots = state.lots.filter(l => l.id && !existingIds.has(l.id));
+    const newToteKeys = new Set(state.totes.map(t=>t.toteKey));
+    const existingToteRes = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${TOTES_TAB}!A2:A`);
+    const existingToteKeys = new Set((existingToteRes.values||[]).map(r=>r[0]).filter(Boolean));
+    const newTotes = state.totes.filter(t => t.toteKey && !existingToteKeys.has(t.toteKey));
+    const data = [];
+    if(newLots.length) {
+      const lotRows = newLots.map(l=>[l.id||'',l.auctionName||'',l.toteLabel||'',l.lotNum||'',l.player||'',l.team||'',l.title||'',l.description||'',l.soldStatus||'pending',l.date||'']);
+      data.push({range:`${LOTS_TAB}!A:J`, values:lotRows});
+    }
+    if(newTotes.length) {
+      const toteRows = newTotes.map(t=>[t.toteKey||'',t.auctionName||'',t.toteLabel||'',(t.lotNums||[]).join(','),t.lotNums&&t.lotNums.length?Math.min(...t.lotNums):'',t.lotNums&&t.lotNums.length?Math.max(...t.lotNums):'',t.date||'']);
+      data.push({range:`${TOTES_TAB}!A:G`, values:toteRows});
+    }
+    if(data.length) {
+      await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchUpdate`, {
+        valueInputOption:'RAW',
+        insertDataOption:'INSERT_ROWS',
+        ...{} // append mode handled per range below
+      });
+      // Use append for each range
+      for(const d of data) {
+        await gapi('POST', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(d.range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {values: d.values});
+      }
+    }
     setSyncStatus('ok', sheetId);
   } catch(e) { setSyncStatus('error', null, e.message); }
   isSyncing = false;
@@ -2928,7 +2947,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.0.0
+  AUCTION MANAGER PRO · V2.0.1
 </div>
 </body>
 </html>
