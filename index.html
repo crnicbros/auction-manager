@@ -683,6 +683,29 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
       <button class="btn btn-gold" onclick="migrateToFirebase()">⬆️ Migrate Local Data to Firebase</button>
       <button class="btn btn-ghost btn-sm" onclick="renderFirebaseTab()">🔄 Refresh</button>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Import from Spreadsheet</div>
+    <p style="font-size:13px;color:var(--muted2);margin-bottom:10px">Paste rows directly from your Google Sheet. Each row should have columns: ID, Auction, Tote, Lot#, Player, Team, Title, Description, Status</p>
+    <div class="field">
+      <label class="field-label">Auction Name</label>
+      <input type="text" id="import-auction" placeholder="e.g. Auction 3" style="width:100%;max-width:200px" />
+    </div>
+    <div class="field">
+      <label class="field-label">Tote Label</label>
+      <input type="text" id="import-tote" placeholder="e.g. Tote M" style="width:100%;max-width:200px" />
+    </div>
+    <div class="field">
+      <label class="field-label">Paste rows from Google Sheet</label>
+      <textarea id="import-paste" rows="8" placeholder="Paste your spreadsheet rows here..." style="width:100%;padding:10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:12px;font-family:'DM Mono',monospace;resize:vertical"></textarea>
+    </div>
+    <button class="btn btn-gold" onclick="importFromPaste()">📥 Import to Firebase</button>
+    <div id="import-status" style="margin-top:10px;font-size:13px;color:var(--muted2)"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="margin-bottom:0">📊 Stored Lots</div>
     <div id="firebase-status" style="font-size:13px;color:var(--muted2);margin-bottom:12px"></div>
     <div id="firebase-table-wrap">
       <div class="empty" id="firebase-empty">Loading...</div>
@@ -3184,6 +3207,68 @@ async function deleteFromFirebase(lotId) {
   notify('Lot deleted from Firebase.');
 }
 
+async function importFromPaste() {
+  const auctionName = document.getElementById('import-auction').value.trim();
+  const toteLabel = document.getElementById('import-tote').value.trim();
+  const paste = document.getElementById('import-paste').value.trim();
+  const status = document.getElementById('import-status');
+  if(!auctionName || !toteLabel) { status.textContent = '⚠ Enter auction name and tote label first.'; return; }
+  if(!paste) { status.textContent = '⚠ Nothing pasted.'; return; }
+  if(!window.fbSaveLots) { status.textContent = '⚠ Firebase not ready.'; return; }
+
+  const lines = paste.split('\n').filter(l => l.trim());
+  const lots = [];
+  const toteKey = `${auctionName}__${toteLabel}`;
+
+  for(const line of lines) {
+    // Split by tab (Google Sheets copies with tabs)
+    const cols = line.split('\t');
+    if(cols.length < 4) continue;
+    // Columns: ID, Auction, Tote, Lot#, Player, Team, Title, Description, Status
+    const id = cols[0]?.trim() || `lot_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+    const lotNum = Number(cols[3]?.trim()) || 0;
+    const title = cols[6]?.trim() || cols[4]?.trim() || '';
+    const description = cols[7]?.trim() || title;
+    const soldStatus = cols[8]?.trim() || 'pending';
+    if(!lotNum && !title) continue;
+    lots.push({
+      id, auctionName, toteLabel, toteKey,
+      lotNum, title, description, soldStatus,
+      player: cols[4]?.trim() || '',
+      team: cols[5]?.trim() || '',
+      date: new Date().toLocaleDateString(),
+      thumbUrls: [], photoLabels: []
+    });
+  }
+
+  if(!lots.length) { status.textContent = '⚠ Could not parse any rows. Make sure you copied from Google Sheets.'; return; }
+  status.textContent = `⏳ Importing ${lots.length} lots...`;
+
+  try {
+    await window.fbSaveLots(lots);
+    // Also save tote
+    if(window.fbSaveTote) {
+      await window.fbSaveTote({
+        toteKey, auctionName, toteLabel,
+        lotNums: lots.map(l => l.lotNum).filter(Boolean),
+        date: new Date().toLocaleDateString()
+      });
+    }
+    // Update local state
+    for(const lot of lots) {
+      if(!state.lots.find(l => l.id === lot.id)) state.lots.push(lot);
+    }
+    if(!state.totes.find(t => t.toteKey === toteKey)) {
+      state.totes.push({toteKey, auctionName, toteLabel, lotNums: lots.map(l=>l.lotNum).filter(Boolean), date: new Date().toLocaleDateString()});
+    }
+    status.textContent = `✅ Imported ${lots.length} lots for ${auctionName} · ${toteLabel}`;
+    document.getElementById('import-paste').value = '';
+    renderFirebaseTab();
+  } catch(e) {
+    status.textContent = '❌ Import failed: ' + e.message;
+  }
+}
+
 async function migrateToFirebase() {
   if(!window.fbSaveLots || !window.fbGetAllLots) { notify('Firebase not ready', true); return; }
   if(!state.lots.length) { notify('No local data to migrate', true); return; }
@@ -3256,7 +3341,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.1.3
+  AUCTION MANAGER PRO · V2.1.4
 </div>
 </body>
 </html>
