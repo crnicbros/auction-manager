@@ -2405,9 +2405,21 @@ function renderTotes(){
               <table class="tote-table"><thead><tr><th>Lot #</th><th>Title</th><th>Date</th><th></th></tr></thead><tbody>
               ${lots.map(l=>`<tr>
                 <td><strong>${l.lotNum}</strong></td>
-                <td style="font-size:12px">${l.title||'—'}</td>
+                <td style="font-size:12px" id="tote-title-${l.id}">${l.title||'—'}</td>
                 <td style="font-size:11px;color:var(--muted)">${l.date||''}</td>
-                <td><button class="btn btn-red btn-sm" onclick="deleteSingleLot('${l.id}','${t.toteKey}')">🗑️</button></td>
+                <td style="display:flex;gap:4px">
+                  <button class="btn btn-ghost btn-sm" onclick="editLotInline('${l.id}','tote')">✏️</button>
+                  <button class="btn btn-red btn-sm" onclick="deleteSingleLot('${l.id}','${t.toteKey}')">🗑️</button>
+                </td>
+              </tr>
+              <tr id="tote-edit-row-${l.id}" style="display:none">
+                <td colspan="4" style="padding:6px 8px">
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input type="text" id="tote-edit-input-${l.id}" value="${(l.title||'').replace(/"/g,'&quot;')}" style="flex:1;padding:6px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:13px"/>
+                    <button class="btn btn-green btn-sm" onclick="saveLotInlineEdit('${l.id}','tote')">✓</button>
+                    <button class="btn btn-ghost btn-sm" onclick="cancelLotInlineEdit('${l.id}','tote')">✕</button>
+                  </div>
+                </td>
               </tr>`).join('')}
               </tbody></table>
             </div>
@@ -2427,6 +2439,44 @@ function toggleIndividualTote(safeKey) {
     panel.style.display = 'none';
     chevron.textContent = '▼';
   }
+}
+
+function editLotInline(lotId, tab) {
+  const editRow = document.getElementById(`${tab}-edit-row-${lotId}`);
+  if(editRow) editRow.style.display = editRow.style.display === 'none' ? 'table-row' : 'none';
+}
+
+function cancelLotInlineEdit(lotId, tab) {
+  const editRow = document.getElementById(`${tab}-edit-row-${lotId}`);
+  if(editRow) editRow.style.display = 'none';
+}
+
+async function saveLotInlineEdit(lotId, tab) {
+  const input = document.getElementById(`${tab}-edit-input-${lotId}`);
+  if(!input) return;
+  const newTitle = input.value.trim();
+  if(!newTitle) return;
+  const newDescription = newTitle; // auto-fill description from title
+
+  // Update local state
+  const lot = state.lots.find(l => l.id === lotId);
+  if(lot) { lot.title = newTitle; lot.description = newDescription; }
+
+  // Update title display
+  const titleEl = document.getElementById(`${tab}-title-${lotId}`);
+  if(titleEl) titleEl.textContent = newTitle;
+
+  // Save to Firebase
+  if(window.fbSaveLot && lot) {
+    try {
+      await window.fbSaveLot({...lot, title: newTitle, description: newDescription});
+      notify('✅ Title updated!');
+    } catch(e) {
+      notify('Firebase save error: ' + e.message, true);
+    }
+  }
+
+  cancelLotInlineEdit(lotId, tab);
 }
 
 function toggleToteAuction(auction) {
@@ -3352,7 +3402,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.1.9
+  AUCTION MANAGER PRO · V2.2.0
 </div>
 </body>
 </html>
