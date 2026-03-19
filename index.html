@@ -1877,23 +1877,11 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
     setProgress(100,`✅ ${processedLots.length} lots processed!`);
     plog(`\n✅ Done: ${processedLots.length} lots — ${auctionName} · ${toteLabel}`,'ok');
 
-    // Check for duplicate lot numbers across the whole auction
-    const allAuctionLots = [...state.lots.filter(l=>l.auctionName===auctionName), ...processedLots];
-    const lotNumCount = {};
-    for(const l of allAuctionLots) {
-      if(l.lotNum) lotNumCount[l.lotNum] = (lotNumCount[l.lotNum]||0) + 1;
-    }
-    const dupes = Object.keys(lotNumCount).filter(n=>lotNumCount[n]>1).map(Number).sort((a,b)=>a-b);
-    if(dupes.length) {
-      plog(`⚠️ Duplicate lot numbers detected: ${dupes.join(', ')} — delete duplicates in History tab`, 'warn');
-      notify(`⚠️ Duplicate lot numbers: ${dupes.join(', ')} — fix in History tab`, true);
-    }
-
     renderLotsGrid();
     document.getElementById('results-section').style.display='block';
     updateDriveBtn();
     updateLastLotHint();setStep(4);
-    if(!dupes.length) notify(`✅ ${processedLots.length} lots ready!`);
+    notify(`✅ ${processedLots.length} lots ready!`);
     // refresh auctions tab in background
     setTimeout(()=>{ if(document.getElementById('tab-auctions').classList.contains('active')) renderAuctions(); }, 500);
 
@@ -3364,7 +3352,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.1.8
+  AUCTION MANAGER PRO · V2.1.9
 </div>
 </body>
 </html>
