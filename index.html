@@ -2245,7 +2245,7 @@ function saveAllEdits(){
   notify('✅ All changes saved!');
 }
 
-function saveLotEdit(lotId){
+async function saveLotEdit(lotId){
   const idx=getLotIdx(lotId);
   const lot=processedLots[idx];
   lot.title=document.getElementById(`etitle_${lotId}`).value;
@@ -2258,6 +2258,10 @@ function saveLotEdit(lotId){
   const rows=[['LOT NUMBER','LOT TITLE','LOT DESCRIPTION','STARTING BID']];
   processedLots.forEach(l=>rows.push([l.lotNum,l.title,l.description,1]));
   currentCsv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  // Save to Firebase
+  if(window.fbSaveLot && lot) {
+    window.fbSaveLot({...lot}).catch(e => notify('Firebase save error: ' + e.message, true));
+  }
 }
 
 // Show Save to Drive button if signed in
@@ -3402,7 +3406,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.2.0
+  AUCTION MANAGER PRO · V2.2.1
 </div>
 </body>
 </html>
