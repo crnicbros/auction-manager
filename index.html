@@ -359,6 +359,11 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     await deleteDoc(doc(db, 'lots', lotId));
   };
 
+  // Delete a tote
+  window.fbDeleteTote = async function(toteKey) {
+    await deleteDoc(doc(db, 'totes', toteKey));
+  };
+
   // Delete all lots for an auction
   window.fbDeleteAuction = async function(auctionName) {
     const q = query(collection(db, 'lots'), where('auctionName', '==', auctionName));
@@ -2323,6 +2328,7 @@ async function deleteTote(toteKey){
   if(window.fbDeleteLot) {
     for(const id of lotsToDelete) window.fbDeleteLot(id).catch(e => console.log('FB delete error:', e));
   }
+  if(window.fbDeleteTote) window.fbDeleteTote(toteKey).catch(e => console.log('FB tote delete error:', e));
 }
 
 function renderTotes(){
@@ -3235,7 +3241,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.1.0
+  AUCTION MANAGER PRO · V2.1.1
 </div>
 </body>
 </html>
