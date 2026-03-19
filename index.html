@@ -1787,20 +1787,17 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
       }
     }
 
-    // Get used lot numbers from Sheets (real-time) + local state
+    // Get used lot numbers from Firebase (real-time)
     setProgress(75,'Getting next lot number...');
     const usedNums = new Set(state.lots.filter(l=>l.auctionName===auctionName).map(l=>l.lotNum));
-    if(accessToken) {
+    if(window.fbGetUsedLotNums) {
       try {
-        plog('🔄 Checking Sheets for used lot numbers...');
-        const sheetId = await getMasterSheetId();
-        const res = await gapi('GET', `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${LOTS_TAB}!B2:D`);
-        for(const r of (res.values||[])) {
-          if((r[0]||'')===auctionName && Number(r[2])) usedNums.add(Number(r[2]));
-        }
-        plog(`✅ ${usedNums.size} lot numbers already used`, 'ok');
+        plog('🔄 Checking Firebase for used lot numbers...');
+        const fbNums = await window.fbGetUsedLotNums(auctionName);
+        for(const n of fbNums) usedNums.add(n);
+        plog(`✅ ${usedNums.size} lot numbers already used in Firebase`, 'ok');
       } catch(e) {
-        plog('⚠ Could not read Sheets — using local state only','warn');
+        plog('⚠ Could not read Firebase lot numbers: ' + e.message, 'warn');
       }
     }
     function nextLotNum() { let n=1; while(usedNums.has(n)) n++; usedNums.add(n); return n; }
@@ -3367,7 +3364,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.1.7
+  AUCTION MANAGER PRO · V2.1.8
 </div>
 </body>
 </html>
