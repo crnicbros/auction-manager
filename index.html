@@ -400,6 +400,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   <button class="tab-btn" onclick="switchTab('history',this)">🏷️ History</button>
   <button class="tab-btn" onclick="switchTab('spreadsheet',this)">📋 Spreadsheet</button>
   <button class="tab-btn" onclick="switchTab('settings',this)">⚙️ Settings</button>
+  <button class="tab-btn" onclick="switchTab('firebase',this);renderFirebaseTab()">🔥 Firebase</button>
 </div>
 
 <div class="main" id="main-content">
@@ -665,6 +666,34 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
       <button class="btn btn-blue" id="settings-signin-btn" onclick="googleSignIn()">Sign in with Google</button>
       <button class="btn btn-ghost btn-sm" id="settings-signout-btn" onclick="signOut()" style="display:none">Sign Out</button>
       <button class="btn btn-ghost btn-sm" onclick="pushToSheet()" id="settings-sync-btn" style="display:none">💾 Sync Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: FIREBASE -->
+<div class="tab-panel" id="tab-firebase">
+  <div class="card">
+    <div class="card-title">🔥 Firebase Data</div>
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-gold" onclick="migrateToFirebase()">⬆️ Migrate Local Data to Firebase</button>
+      <button class="btn btn-ghost btn-sm" onclick="renderFirebaseTab()">🔄 Refresh</button>
+    </div>
+    <div id="firebase-status" style="font-size:13px;color:var(--muted2);margin-bottom:12px"></div>
+    <div id="firebase-table-wrap" style="overflow-x:auto">
+      <div class="empty" id="firebase-empty">Loading...</div>
+      <table id="firebase-table" style="display:none;width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;color:var(--muted2)">LOT#</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted2)">AUCTION</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted2)">TOTE</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted2)">TITLE</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted2)">STATUS</th>
+            <th style="padding:6px 8px"></th>
+          </tr>
+        </thead>
+        <tbody id="firebase-tbody"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -1329,6 +1358,7 @@ function switchTab(name,btn){
   if(name==='totes')renderTotes();
   if(name==='unsold')renderUnsoldTab();
   if(name==='history')renderHistory();
+  if(name==='firebase')renderFirebaseTab();
   if(name==='spreadsheet')renderSpreadsheetTab();
   if(name==='settings')renderSettingsTab();
 }
@@ -3031,6 +3061,75 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // ============================================================
+// FIREBASE TAB
+// ============================================================
+async function renderFirebaseTab() {
+  const empty = document.getElementById('firebase-empty');
+  const table = document.getElementById('firebase-table');
+  const tbody = document.getElementById('firebase-tbody');
+  const status = document.getElementById('firebase-status');
+  if(!window.fbGetAllLots) { empty.textContent = 'Firebase not connected yet.'; return; }
+  empty.textContent = 'Loading...';
+  table.style.display = 'none';
+  try {
+    const lots = await window.fbGetAllLots();
+    if(!lots.length) { empty.textContent = 'No lots in Firebase yet.'; return; }
+    lots.sort((a,b) => (a.auctionName||'').localeCompare(b.auctionName||'') || (a.lotNum||0)-(b.lotNum||0));
+    status.textContent = `${lots.length} lots in Firebase`;
+    tbody.innerHTML = lots.map(l => `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:5px 8px;color:var(--gold);font-weight:600">${l.lotNum||'—'}</td>
+        <td style="padding:5px 8px;color:var(--text2)">${l.auctionName||''}</td>
+        <td style="padding:5px 8px;color:var(--text2)">${l.toteLabel||''}</td>
+        <td style="padding:5px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.title||''}</td>
+        <td style="padding:5px 8px;color:var(--muted2)">${l.soldStatus||'pending'}</td>
+        <td style="padding:5px 8px"><button class="btn btn-red btn-sm" onclick="deleteFromFirebase('${l.id}')">🗑️</button></td>
+      </tr>`).join('');
+    empty.style.display = 'none';
+    table.style.display = 'table';
+  } catch(e) {
+    empty.textContent = 'Error loading Firebase data: ' + e.message;
+  }
+}
+
+async function deleteFromFirebase(lotId) {
+  if(!confirm('Delete this lot from Firebase?')) return;
+  if(!window.fbDeleteLot) return;
+  await window.fbDeleteLot(lotId);
+  state.lots = state.lots.filter(l => l.id !== lotId);
+  saveState();
+  renderFirebaseTab();
+  notify('Lot deleted from Firebase.');
+}
+
+async function migrateToFirebase() {
+  if(!window.fbSaveLots || !window.fbGetAllLots) { notify('Firebase not ready', true); return; }
+  if(!state.lots.length) { notify('No local data to migrate', true); return; }
+  notify('⏳ Checking Firebase for existing lots...');
+  try {
+    const existingLots = await window.fbGetAllLots();
+    const existingIds = new Set(existingLots.map(l => l.id));
+    const newLots = state.lots.filter(l => l.id && !existingIds.has(l.id));
+    if(!newLots.length) { notify('All lots already in Firebase — nothing to migrate.'); return; }
+    notify(`⏳ Migrating ${newLots.length} lots to Firebase...`);
+    // Batch in groups of 500
+    const batchSize = 400;
+    for(let i = 0; i < newLots.length; i += batchSize) {
+      await window.fbSaveLots(newLots.slice(i, i + batchSize));
+    }
+    // Migrate totes too
+    const existingTotes = await window.fbGetAllTotes();
+    const existingToteKeys = new Set(existingTotes.map(t => t.toteKey));
+    const newTotes = state.totes.filter(t => t.toteKey && !existingToteKeys.has(t.toteKey));
+    for(const tote of newTotes) await window.fbSaveTote(tote);
+    notify(`✅ Migrated ${newLots.length} lots and ${newTotes.length} totes to Firebase!`);
+    renderFirebaseTab();
+  } catch(e) {
+    notify('Migration error: ' + e.message, true);
+  }
+}
+
+// ============================================================
 // SETTINGS TAB
 // ============================================================
 function renderSettingsTab() {
@@ -3075,7 +3174,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.0.4
+  AUCTION MANAGER PRO · V2.0.5
 </div>
 </body>
 </html>
