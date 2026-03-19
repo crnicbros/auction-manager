@@ -3221,21 +3221,38 @@ async function importFromPaste() {
   const toteKey = `${auctionName}__${toteLabel}`;
 
   for(const line of lines) {
-    // Split by tab (Google Sheets copies with tabs)
-    const cols = line.split('\t');
-    if(cols.length < 4) continue;
-    // Columns: ID, Auction, Tote, Lot#, Player, Team, Title, Description, Status
-    const id = cols[0]?.trim() || `lot_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-    const lotNum = Number(cols[3]?.trim()) || 0;
-    const title = cols[6]?.trim() || cols[4]?.trim() || '';
-    const description = cols[7]?.trim() || title;
-    const soldStatus = cols[8]?.trim() || 'pending';
+    const cols = line.split('\t').map(c => c.trim());
+    if(cols.length < 2) continue;
+
+    let lotNum = 0, title = '', description = '', player = '', team = '', soldStatus = 'pending';
+
+    // Detect format by checking if col[1] is a number (Tote, LotNum, Player, Team, Title, Desc)
+    // or col[3] is a number (ID, Auction, Tote, LotNum, Player, Team, Title, Desc, Status)
+    if(!isNaN(Number(cols[1])) && Number(cols[1]) > 0) {
+      // Format: Tote, LotNum, Player, Team, Title, Description
+      lotNum = Number(cols[1]);
+      player = cols[2] || '';
+      team = cols[3] || '';
+      title = cols[4] || '';
+      description = cols[5] || title;
+      soldStatus = 'pending';
+    } else if(!isNaN(Number(cols[3])) && Number(cols[3]) > 0) {
+      // Format: ID, Auction, Tote, LotNum, Player, Team, Title, Description, Status
+      lotNum = Number(cols[3]);
+      player = cols[4] || '';
+      team = cols[5] || '';
+      title = cols[6] || '';
+      description = cols[7] || title;
+      soldStatus = cols[8] || 'pending';
+    } else {
+      continue;
+    }
+
     if(!lotNum && !title) continue;
+    const id = `lot_imported_${lotNum}_${Date.now()}_${Math.random().toString(36).slice(2,4)}`;
     lots.push({
       id, auctionName, toteLabel, toteKey,
-      lotNum, title, description, soldStatus,
-      player: cols[4]?.trim() || '',
-      team: cols[5]?.trim() || '',
+      lotNum, title, description, soldStatus, player, team,
       date: new Date().toLocaleDateString(),
       thumbUrls: [], photoLabels: []
     });
@@ -3341,7 +3358,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.1.4
+  AUCTION MANAGER PRO · V2.1.5
 </div>
 </body>
 </html>
