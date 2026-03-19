@@ -706,9 +706,22 @@ const STORE_KEY = 'auction_mgr_v2';
 // ============================================================
 // STATE
 // ============================================================
-function loadState(){try{const s=localStorage.getItem(STORE_KEY);return s?JSON.parse(s):{lots:[],totes:[],carryForward:[],sheetIds:{}};}catch(e){return{lots:[],totes:[],carryForward:[],sheetIds:{}};}}
+function loadState(){
+  try{
+    const s=localStorage.getItem(STORE_KEY);
+    const saved = s ? JSON.parse(s) : {};
+    return {lots:[], totes:[], carryForward:saved.carryForward||[], sheetIds:saved.sheetIds||{}, apiKey:saved.apiKey||'', masterSheetId:saved.masterSheetId||null};
+  }catch(e){return{lots:[],totes:[],carryForward:[],sheetIds:{}};}
+}
 function saveState(){
-  try{localStorage.setItem(STORE_KEY,JSON.stringify(state));}catch(e){}
+  // Only save non-lot data locally — lots/totes live in Firebase
+  const localState = {
+    apiKey: state.apiKey,
+    masterSheetId: state.masterSheetId,
+    carryForward: state.carryForward || [],
+    sheetIds: state.sheetIds || {}
+  };
+  try{localStorage.setItem(STORE_KEY, JSON.stringify(localState));}catch(e){}
   scheduleSyncToGoogle();
 }
 let state=loadState();
@@ -1233,14 +1246,16 @@ async function loadFromFirebase() {
   if(!window.fbGetAllLots) { setTimeout(loadFromFirebase, 500); return; }
   try {
     setSyncStatus('loading');
-    const [lots, totes] = await Promise.all([window.fbGetAllLots(), window.fbGetAllTotes()]);
-    if(lots.length || totes.length) {
-      state.lots = lots.map(l => ({...l, thumbUrls: l.thumbUrls || [], photoLabels: l.photoLabels || []}));
-      state.totes = totes;
-      saveState();
+    const [fbLots, fbTotes] = await Promise.all([window.fbGetAllLots(), window.fbGetAllTotes()]);
+    if(fbLots.length || fbTotes.length) {
+      // Firebase is master — replace local lots/totes entirely
+      state.lots = fbLots.map(l => ({...l, thumbUrls: l.thumbUrls || [], photoLabels: l.photoLabels || []}));
+      state.totes = fbTotes;
       updateLastLotHint();
-      notify(`✅ Loaded ${lots.length} lots from Firebase`);
+      notify(`✅ Loaded ${fbLots.length} lots from Firebase`);
     } else {
+      state.lots = [];
+      state.totes = [];
       notify('Firebase connected — no data yet.');
     }
     setSyncStatus('ok', 'firebase');
@@ -1251,6 +1266,7 @@ async function loadFromFirebase() {
 }
 
 async function pullFromSheet() {
+  return; // Disabled — using Firebase instead
   if(!accessToken) return;
   setSyncStatus('loading');
   try {
@@ -1307,7 +1323,6 @@ async function pullFromSheet() {
 }
 
 function scheduleSyncToGoogle() {
-  // Now uses Firebase instead of Sheets
   syncToFirebase();
 }
 async function syncToFirebase() {
@@ -3241,7 +3256,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.1.1
+  AUCTION MANAGER PRO · V2.1.3
 </div>
 </body>
 </html>
