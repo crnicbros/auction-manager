@@ -1626,7 +1626,7 @@ async function callClaude(files, apiKey, itemType='jersey'){
   }
   const contents=[];
   for(let i=0;i<files.length;i++){
-    const b64=await fileToBase64(files[i], i===0 ? 2000 : 1600);
+    const b64=await fileToBase64(files[i], i===0 ? 1000 : 800);
     contents.push({type:'image',source:{type:'base64',media_type:files[i].type||'image/jpeg',data:b64}});
     contents.push({type:'text',text:`Image ${i} (${config.slots[i]||'Photo '+i}): "${files[i].name}"`});
   }
@@ -3406,7 +3406,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.2.2
+  AUCTION MANAGER PRO · V2.2.3
 </div>
 </body>
 </html>
