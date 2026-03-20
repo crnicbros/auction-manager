@@ -3329,9 +3329,11 @@ async function downloadSelectedPhotos() {
 
 function showUploadToDrivePanel() {
   const panel = document.getElementById('fb-upload-panel');
-  const isHidden = panel.style.display === '' || panel.style.display === 'none';
-  panel.style.display = isHidden ? 'block' : 'none';
-  if(isHidden) updateUploadPreview();
+  if(!panel) { notify('Upload panel not found', true); return; }
+  // Force show it
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+  updateUploadPreview();
 }
 
 function updateUploadPreview() {
@@ -3645,7 +3647,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.2.9
+  AUCTION MANAGER PRO · V2.3.0
 </div>
 </body>
 </html>
