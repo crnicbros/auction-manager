@@ -3535,6 +3535,27 @@ async function reassignSelectedLots() {
     state.lots.forEach(l => {
       if(selectedIds.has(l.id)) { l.auctionName = toAuction; l.toteKey = `${toAuction}__${l.toteLabel}`; }
     });
+
+    // Update totes — group moved lots by tote and save tote records in new auction
+    const movedByTote = {};
+    for(const lot of selected) {
+      if(!movedByTote[lot.toteLabel]) movedByTote[lot.toteLabel] = [];
+      movedByTote[lot.toteLabel].push(lot.lotNum);
+    }
+    for(const [toteLabel, lotNums] of Object.entries(movedByTote)) {
+      const newToteKey = `${toAuction}__${toteLabel}`;
+      // Check if tote already exists in new auction, merge lot nums
+      const existingTote = state.totes.find(t => t.toteKey === newToteKey);
+      if(existingTote) {
+        existingTote.lotNums = [...new Set([...existingTote.lotNums, ...lotNums])].sort((a,b)=>a-b);
+        if(window.fbSaveTote) await window.fbSaveTote(existingTote);
+      } else {
+        const newTote = {toteKey: newToteKey, auctionName: toAuction, toteLabel, lotNums: lotNums.sort((a,b)=>a-b), date: new Date().toLocaleDateString()};
+        state.totes.push(newTote);
+        if(window.fbSaveTote) await window.fbSaveTote(newTote);
+      }
+    }
+
     status.textContent = `✅ Moved ${selected.length} lots to "${toAuction}"`;
     notify(`✅ ${selected.length} lots moved to ${toAuction}`);
     renderAuctions();
@@ -3796,7 +3817,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.3.4
+  AUCTION MANAGER PRO · V2.3.5
 </div>
 </body>
 </html>
