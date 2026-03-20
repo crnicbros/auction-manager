@@ -2702,7 +2702,10 @@ function renderAuctions() {
     <div class="auction-card">
       <div class="auction-card-header">
         <div>
-          <div class="auction-card-title">${auction}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="auction-card-title" id="auction-title-${auction}">${auction}</div>
+            <button class="btn btn-ghost btn-sm" onclick="editAuctionName('${auction}')" style="font-size:11px;padding:4px 8px">✏️</button>
+          </div>
           <div class="auction-card-meta">${totes.length} tote${totes.length!==1?'s':''} · Lots ${minLot}–${maxLot}</div>
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -2748,6 +2751,35 @@ function renderAuctions() {
       </div>
     </div>`;
   }).join('');
+}
+
+async function editAuctionName(oldName) {
+  const newName = prompt(`Rename "${oldName}" to:`, oldName);
+  if(!newName || newName.trim() === oldName) return;
+  const trimmed = newName.trim();
+
+  // Update all lots and totes locally
+  state.lots.forEach(l => { if(l.auctionName === oldName) { l.auctionName = trimmed; l.toteKey = `${trimmed}__${l.toteLabel}`; } });
+  state.totes.forEach(t => { if(t.auctionName === oldName) { t.auctionName = trimmed; t.toteKey = `${trimmed}__${t.toteLabel}`; } });
+
+  // Update Firebase — save all affected lots and totes with new name
+  if(window.fbSaveLots) {
+    const affected = state.lots.filter(l => l.auctionName === trimmed);
+    try {
+      // Delete old docs and save with new name
+      if(window.fbDeleteAuction) await window.fbDeleteAuction(oldName);
+      await window.fbSaveLots(affected);
+      for(const t of state.totes.filter(t => t.auctionName === trimmed)) {
+        if(window.fbSaveTote) await window.fbSaveTote(t);
+      }
+      notify(`✅ Renamed to "${trimmed}" everywhere`);
+    } catch(e) {
+      notify('Firebase update error: ' + e.message, true);
+    }
+  }
+
+  renderAuctions();
+  renderTotes();
 }
 
 async function deleteAuction(auctionName) {
@@ -3356,9 +3388,13 @@ async function uploadFirebasePhotosToDrive() {
   const status = document.getElementById('fb-upload-status');
   const btn = document.getElementById('fb-upload-go-btn');
 
+  if(!accessToken) {
+    status.textContent = '⚠ You need to sign in with Google first. Go to Settings tab and sign in.';
+    notify('Sign in with Google first', true);
+    return;
+  }
   if(!auctionName) { status.textContent = '⚠ Enter auction name.'; return; }
   if(!startLot) { status.textContent = '⚠ Enter starting lot number.'; return; }
-  if(!accessToken) { status.textContent = '⚠ Sign in with Google first.'; return; }
 
   const selected = fbPhotoGroups.filter((g, gi) => document.getElementById(`fb-group-${gi}`)?.checked);
   if(!selected.length) { status.textContent = '⚠ No groups selected.'; return; }
@@ -3647,7 +3683,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.3.0
+  AUCTION MANAGER PRO · V2.3.2
 </div>
 </body>
 </html>
