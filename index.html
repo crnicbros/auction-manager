@@ -376,6 +376,26 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     await batch.commit();
   };
 
+  // List all sessions with their photos
+  window.fbListAllSessions = async function() {
+    const listRef = ref(storage, 'sessions');
+    try {
+      const res = await listAll(listRef);
+      const sessions = [];
+      for(const folder of res.prefixes) {
+        const folderRes = await listAll(folder);
+        if(!folderRes.items.length) continue;
+        const photos = await Promise.all(folderRes.items.map(async item => ({
+          name: item.name,
+          url: await getDownloadURL(item)
+        })));
+        photos.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+        sessions.push({ sessionId: folder.name, photos });
+      }
+      return sessions;
+    } catch(e) { return []; }
+  };
+
   // Count all photos in storage (all sessions)
   window.fbCountAllPhotos = async function() {
     const listRef = ref(storage, 'sessions');
@@ -731,6 +751,17 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
     <button class="btn btn-gold" onclick="importFromPaste()">📥 Import to Firebase</button>
     <div id="import-status" style="margin-top:10px;font-size:13px;color:var(--muted2)"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📷 Temporary Photos</div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="loadFirebasePhotos()">🔄 Load Photos</button>
+      <button class="btn btn-gold btn-sm" onclick="downloadSelectedPhotos()" id="download-selected-btn" style="display:none">⬇️ Download Selected as ZIP</button>
+      <button class="btn btn-ghost btn-sm" onclick="selectAllPhotos()" id="select-all-btn" style="display:none">☑️ Select All</button>
+      <button class="btn btn-ghost btn-sm" onclick="deselectAllPhotos()" id="deselect-all-btn" style="display:none">☐ Deselect All</button>
+    </div>
+    <div id="fb-photos-content" style="font-size:13px;color:var(--muted2)">Click "Load Photos" to see temporary photos stored in Firebase.</div>
   </div>
 
   <div class="card">
@@ -3203,6 +3234,79 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // ============================================================
 let fbAllLots = [];
 
+let fbPhotoGroups = []; // [{sessionId, groupIdx, photos:[{name,url}]}]
+
+async function loadFirebasePhotos() {
+  const el = document.getElementById('fb-photos-content');
+  el.textContent = '⏳ Loading...';
+  if(!window.fbListAllSessions) { el.textContent = 'Firebase not ready.'; return; }
+  const sessions = await window.fbListAllSessions();
+  fbPhotoGroups = [];
+  if(!sessions.length) { el.textContent = 'No temporary photos found.'; return; }
+
+  // Group photos into lots of 4-5
+  for(const session of sessions) {
+    const groupSize = 4;
+    for(let i = 0; i < session.photos.length; i += groupSize) {
+      fbPhotoGroups.push({
+        sessionId: session.sessionId,
+        groupIdx: fbPhotoGroups.length,
+        photos: session.photos.slice(i, i + groupSize)
+      });
+    }
+  }
+
+  document.getElementById('download-selected-btn').style.display = 'inline-flex';
+  document.getElementById('select-all-btn').style.display = 'inline-flex';
+  document.getElementById('deselect-all-btn').style.display = 'inline-flex';
+
+  el.innerHTML = `<div style="font-size:12px;color:var(--muted2);margin-bottom:10px">${fbPhotoGroups.length} groups found — check the ones you want to download</div>` +
+    fbPhotoGroups.map((g, gi) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <input type="checkbox" id="fb-group-${gi}" style="width:18px;height:18px;cursor:pointer" onchange="updateDownloadBtn()"/>
+        <div style="display:flex;gap:4px;flex:1;overflow-x:auto">
+          ${g.photos.map(p => `<img src="${p.url}" style="width:52px;height:52px;object-fit:cover;border-radius:4px;flex-shrink:0"/>`).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--muted2);white-space:nowrap">${g.photos.length} photos</div>
+      </div>`).join('');
+}
+
+function updateDownloadBtn() {
+  const checked = fbPhotoGroups.filter((g,gi) => document.getElementById(`fb-group-${gi}`)?.checked).length;
+  const btn = document.getElementById('download-selected-btn');
+  if(btn) btn.textContent = `⬇️ Download ${checked} Selected as ZIP`;
+}
+
+function selectAllPhotos() {
+  fbPhotoGroups.forEach((g, gi) => { const cb = document.getElementById(`fb-group-${gi}`); if(cb) cb.checked = true; });
+  updateDownloadBtn();
+}
+
+function deselectAllPhotos() {
+  fbPhotoGroups.forEach((g, gi) => { const cb = document.getElementById(`fb-group-${gi}`); if(cb) cb.checked = false; });
+  updateDownloadBtn();
+}
+
+async function downloadSelectedPhotos() {
+  const selected = fbPhotoGroups.filter((g, gi) => document.getElementById(`fb-group-${gi}`)?.checked);
+  if(!selected.length) { notify('No groups selected', true); return; }
+  notify(`⏳ Building ZIP with ${selected.length} groups...`);
+  const zip = new JSZip();
+  for(const g of selected) {
+    for(const photo of g.photos) {
+      const resp = await fetch(photo.url);
+      const blob = await resp.blob();
+      zip.file(photo.name, blob);
+    }
+  }
+  const blob = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `firebase_photos_${Date.now()}.zip`;
+  a.click();
+  notify(`✅ Downloaded ${selected.reduce((n,g)=>n+g.photos.length,0)} photos!`);
+}
+
 async function clearFirebasePhotos() {
   if(!window.fbClearAllPhotos) { notify('Firebase not ready', true); return; }
   if(!confirm('Clear all temporary photos from Firebase Storage? This cannot be undone.')) return;
@@ -3454,7 +3558,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.2.5
+  AUCTION MANAGER PRO · V2.2.6
 </div>
 </body>
 </html>
