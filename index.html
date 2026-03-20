@@ -1488,7 +1488,7 @@ dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');handleFiles([...e.dataTransfer.files])});
 fi.addEventListener('change',()=>handleFiles([...fi.files]));
 
-function handleFiles(files){
+function handleFiles(files, skipFirebase=false){
   allFiles=files.filter(f=>f.type.startsWith('image/')).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
   const n=allFiles.length;
   const _ppl=(ITEM_CONFIG[document.getElementById('item-type')?.value]||ITEM_CONFIG.jersey).photos;
@@ -1496,8 +1496,8 @@ function handleFiles(files){
   document.getElementById('process-btn').disabled=n===0;
   document.getElementById('clear-photos-btn').style.display=n?'inline-flex':'none';
   setStep(2);
-  // Save uploaded files to Firebase
-  if(window.fbUploadPhoto && n > 0) {
+  // Save uploaded files to Firebase (skip if coming from camera mode — already saved per capture)
+  if(!skipFirebase && window.fbUploadPhoto && n > 0) {
     allFiles.forEach((file, i) => {
       window.fbUploadPhoto(file, `upload_${String(i+1).padStart(4,'0')}_${file.name}`).catch(e => console.log('FB upload error:', e));
     });
@@ -3237,7 +3237,7 @@ async function camFinish() {
     offset += sz;
   }
   setPhotoMode('upload');
-  handleFiles(files);
+  handleFiles(files, true);
   notify(`📷 ${files.length} camera photos ready — hit Process!`);
 }
 
@@ -3644,7 +3644,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.2.7
+  AUCTION MANAGER PRO · V2.2.8
 </div>
 </body>
 </html>
