@@ -730,6 +730,8 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-gold" onclick="migrateToFirebase()">⬆️ Migrate Local Data to Firebase</button>
       <button class="btn btn-ghost btn-sm" onclick="renderFirebaseTab()">🔄 Refresh</button>
+      <button class="btn btn-ghost btn-sm" onclick="rebuildTotesFromLots()">🔧 Rebuild Totes</button>
+      <button class="btn btn-ghost btn-sm" onclick="rebuildTotesFromLots()">🔧 Rebuild Totes</button>
       <button class="btn btn-red btn-sm" onclick="clearFirebasePhotos()" id="clear-fb-photos-btn">🗑️ Clear Photos <span id="fb-photo-count" style="background:rgba(255,255,255,0.2);border-radius:10px;padding:1px 7px;font-size:11px">...</span></button>
     </div>
   </div>
@@ -3566,6 +3568,64 @@ async function reassignSelectedLots() {
   }
 }
 
+async function rebuildTotesFromLots() {
+  if(!window.fbGetAllLots || !window.fbSaveTote) { notify('Firebase not ready', true); return; }
+  notify('⏳ Rebuilding totes from lots...');
+  try {
+    const allLots = await window.fbGetAllLots();
+    // Group lots by auctionName + toteLabel
+    const toteMap = {};
+    for(const lot of allLots) {
+      if(!lot.auctionName || !lot.toteLabel) continue;
+      const key = `${lot.auctionName}__${lot.toteLabel}`;
+      if(!toteMap[key]) toteMap[key] = {toteKey: key, auctionName: lot.auctionName, toteLabel: lot.toteLabel, lotNums: [], date: lot.date || new Date().toLocaleDateString()};
+      if(lot.lotNum) toteMap[key].lotNums.push(lot.lotNum);
+    }
+    // Save all totes to Firebase
+    const totes = Object.values(toteMap);
+    for(const tote of totes) {
+      tote.lotNums = [...new Set(tote.lotNums)].sort((a,b)=>a-b);
+      await window.fbSaveTote(tote);
+    }
+    // Update local state
+    state.totes = totes;
+    notify(`✅ Rebuilt ${totes.length} totes from ${allLots.length} lots`);
+    renderAuctions();
+    renderTotes();
+  } catch(e) {
+    notify('Rebuild failed: ' + e.message, true);
+  }
+}
+
+async function rebuildTotesFromLots() {
+  if(!window.fbGetAllLots || !window.fbSaveTote) { notify('Firebase not ready', true); return; }
+  notify('⏳ Rebuilding totes from lots...');
+  try {
+    const allLots = await window.fbGetAllLots();
+    // Group lots by auctionName + toteLabel
+    const toteMap = {};
+    for(const lot of allLots) {
+      if(!lot.auctionName || !lot.toteLabel) continue;
+      const key = `${lot.auctionName}__${lot.toteLabel}`;
+      if(!toteMap[key]) toteMap[key] = { toteKey: key, auctionName: lot.auctionName, toteLabel: lot.toteLabel, lotNums: [], date: lot.date || new Date().toLocaleDateString() };
+      if(lot.lotNum) toteMap[key].lotNums.push(lot.lotNum);
+    }
+    // Save all totes to Firebase
+    const totes = Object.values(toteMap);
+    for(const tote of totes) {
+      tote.lotNums = [...new Set(tote.lotNums)].sort((a,b)=>a-b);
+      await window.fbSaveTote(tote);
+    }
+    // Update local state
+    state.totes = totes;
+    notify(`✅ Rebuilt ${totes.length} totes from ${allLots.length} lots`);
+    renderAuctions();
+    renderTotes();
+  } catch(e) {
+    notify('Rebuild error: ' + e.message, true);
+  }
+}
+
 async function clearFirebasePhotos() {
   if(!window.fbClearAllPhotos) { notify('Firebase not ready', true); return; }
   if(!confirm('Clear all temporary photos from Firebase Storage? This cannot be undone.')) return;
@@ -3817,7 +3877,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.3.5
+  AUCTION MANAGER PRO · V2.3.6
 </div>
 </body>
 </html>
