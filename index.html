@@ -376,6 +376,34 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     await batch.commit();
   };
 
+  // Count all photos in storage (all sessions)
+  window.fbCountAllPhotos = async function() {
+    const listRef = ref(storage, 'sessions');
+    try {
+      const res = await listAll(listRef);
+      let total = 0;
+      for(const folder of res.prefixes) {
+        const folderRes = await listAll(folder);
+        total += folderRes.items.length;
+      }
+      return total;
+    } catch(e) { return 0; }
+  };
+
+  // Clear ALL photos across all sessions
+  window.fbClearAllPhotos = async function() {
+    const listRef = ref(storage, 'sessions');
+    try {
+      const res = await listAll(listRef);
+      for(const folder of res.prefixes) {
+        const folderRes = await listAll(folder);
+        await Promise.all(folderRes.items.map(item => deleteObject(item)));
+      }
+      localStorage.removeItem('fb_session_id');
+      localStorage.removeItem('fb_session_meta');
+    } catch(e) { console.log('Clear all photos error:', e); }
+  };
+
   console.log('Firebase ready (Storage + Firestore)');
 </script>
 </head>
@@ -679,9 +707,10 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 <div class="tab-panel" id="tab-firebase">
   <div class="card">
     <div class="card-title">🔥 Firebase Data</div>
-    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-gold" onclick="migrateToFirebase()">⬆️ Migrate Local Data to Firebase</button>
       <button class="btn btn-ghost btn-sm" onclick="renderFirebaseTab()">🔄 Refresh</button>
+      <button class="btn btn-red btn-sm" onclick="clearFirebasePhotos()" id="clear-fb-photos-btn">🗑️ Clear Photos <span id="fb-photo-count" style="background:rgba(255,255,255,0.2);border-radius:10px;padding:1px 7px;font-size:11px">...</span></button>
     </div>
   </div>
 
@@ -3174,11 +3203,30 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // ============================================================
 let fbAllLots = [];
 
+async function clearFirebasePhotos() {
+  if(!window.fbClearAllPhotos) { notify('Firebase not ready', true); return; }
+  if(!confirm('Clear all temporary photos from Firebase Storage? This cannot be undone.')) return;
+  notify('⏳ Clearing photos...');
+  await window.fbClearAllPhotos();
+  document.getElementById('fb-photo-count').textContent = '0';
+  notify('✅ All Firebase photos cleared!');
+}
+
+async function updateFirebasePhotoCount() {
+  if(!window.fbCountAllPhotos) return;
+  try {
+    const count = await window.fbCountAllPhotos();
+    const el = document.getElementById('fb-photo-count');
+    if(el) el.textContent = count;
+  } catch(e) {}
+}
+
 async function renderFirebaseTab() {
   const empty = document.getElementById('firebase-empty');
   const status = document.getElementById('firebase-status');
   const tableWrap = document.getElementById('firebase-table-wrap');
   if(!window.fbGetAllLots) { empty.textContent = 'Firebase not connected yet.'; empty.style.display='block'; return; }
+  updateFirebasePhotoCount();
   empty.textContent = 'Loading...';
   empty.style.display = 'block';
   tableWrap.querySelectorAll('.fb-auction-block').forEach(el => el.remove());
@@ -3406,7 +3454,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.2.3
+  AUCTION MANAGER PRO · V2.2.4
 </div>
 </body>
 </html>
