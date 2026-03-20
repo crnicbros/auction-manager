@@ -758,10 +758,29 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-ghost btn-sm" onclick="loadFirebasePhotos()">🔄 Load Photos</button>
       <button class="btn btn-gold btn-sm" onclick="downloadSelectedPhotos()" id="download-selected-btn" style="display:none">⬇️ Download Selected as ZIP</button>
+      <button class="btn btn-blue btn-sm" onclick="showUploadToDrivePanel()" id="upload-drive-btn" style="display:none">☁️ Upload to Drive</button>
       <button class="btn btn-ghost btn-sm" onclick="selectAllPhotos()" id="select-all-btn" style="display:none">☑️ Select All</button>
       <button class="btn btn-ghost btn-sm" onclick="deselectAllPhotos()" id="deselect-all-btn" style="display:none">☐ Deselect All</button>
     </div>
     <div id="fb-photos-content" style="font-size:13px;color:var(--muted2)">Click "Load Photos" to see temporary photos stored in Firebase.</div>
+
+    <!-- Upload to Drive Panel -->
+    <div id="fb-upload-panel" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;color:var(--gold);margin-bottom:10px">☁️ Upload to Drive with Lot Numbers</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div class="field" style="margin:0">
+          <label class="field-label">Auction Name</label>
+          <input type="text" id="fb-upload-auction" placeholder="e.g. Auction 3" style="padding:8px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:13px;width:150px"/>
+        </div>
+        <div class="field" style="margin:0">
+          <label class="field-label">Starting Lot #</label>
+          <input type="number" id="fb-upload-start-lot" placeholder="e.g. 507" style="padding:8px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:13px;width:100px"/>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:10px" id="fb-upload-preview"></div>
+      <button class="btn btn-gold" onclick="uploadFirebasePhotosToDrive()" id="fb-upload-go-btn">☁️ Upload Selected to Drive</button>
+      <div id="fb-upload-status" style="margin-top:8px;font-size:13px;color:var(--muted2)"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -3259,6 +3278,7 @@ async function loadFirebasePhotos() {
   document.getElementById('download-selected-btn').style.display = 'inline-flex';
   document.getElementById('select-all-btn').style.display = 'inline-flex';
   document.getElementById('deselect-all-btn').style.display = 'inline-flex';
+  document.getElementById('upload-drive-btn').style.display = 'inline-flex';
 
   el.innerHTML = `<div style="font-size:12px;color:var(--muted2);margin-bottom:10px">${fbPhotoGroups.length} groups found — check the ones you want to download</div>` +
     fbPhotoGroups.map((g, gi) => `
@@ -3305,6 +3325,72 @@ async function downloadSelectedPhotos() {
   a.download = `firebase_photos_${Date.now()}.zip`;
   a.click();
   notify(`✅ Downloaded ${selected.reduce((n,g)=>n+g.photos.length,0)} photos!`);
+}
+
+function showUploadToDrivePanel() {
+  const panel = document.getElementById('fb-upload-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  updateUploadPreview();
+}
+
+function updateUploadPreview() {
+  const startLot = parseInt(document.getElementById('fb-upload-start-lot')?.value) || 0;
+  const selected = fbPhotoGroups.filter((g, gi) => document.getElementById(`fb-group-${gi}`)?.checked);
+  const preview = document.getElementById('fb-upload-preview');
+  if(!preview) return;
+  if(!selected.length) { preview.textContent = 'Select groups above first.'; return; }
+  if(!startLot) { preview.textContent = 'Enter a starting lot number.'; return; }
+  preview.textContent = `${selected.length} groups will be uploaded as lots ${startLot} – ${startLot + selected.length - 1}`;
+}
+
+document.addEventListener('change', e => {
+  if(e.target.id === 'fb-upload-start-lot') updateUploadPreview();
+});
+
+async function uploadFirebasePhotosToDrive() {
+  const auctionName = document.getElementById('fb-upload-auction').value.trim();
+  const startLot = parseInt(document.getElementById('fb-upload-start-lot').value);
+  const status = document.getElementById('fb-upload-status');
+  const btn = document.getElementById('fb-upload-go-btn');
+
+  if(!auctionName) { status.textContent = '⚠ Enter auction name.'; return; }
+  if(!startLot) { status.textContent = '⚠ Enter starting lot number.'; return; }
+  if(!accessToken) { status.textContent = '⚠ Sign in with Google first.'; return; }
+
+  const selected = fbPhotoGroups.filter((g, gi) => document.getElementById(`fb-group-${gi}`)?.checked);
+  if(!selected.length) { status.textContent = '⚠ No groups selected.'; return; }
+
+  btn.disabled = true;
+  status.textContent = '⏳ Creating Drive folders...';
+
+  try {
+    const rootId = await findOrCreateFolder('Auction Manager Pro');
+    const auctionId = await findOrCreateFolder(auctionName, rootId);
+    const photosFolderId = await findOrCreateFolder('All Photos', auctionId);
+
+    let uploaded = 0;
+    const total = selected.reduce((n, g) => n + g.photos.length, 0);
+
+    for(let i = 0; i < selected.length; i++) {
+      const lotNum = startLot + i;
+      const group = selected[i];
+      for(let p = 0; p < group.photos.length; p++) {
+        const photo = group.photos[p];
+        status.textContent = `⏳ Uploading ${uploaded + 1}/${total} — Lot ${lotNum} photo ${p + 1}...`;
+        const resp = await fetch(photo.url);
+        const blob = await resp.blob();
+        await uploadFileToDrive(blob, `${lotNum}-${p + 1}.jpg`, 'image/jpeg', photosFolderId);
+        uploaded++;
+      }
+    }
+
+    status.textContent = `✅ Uploaded ${uploaded} photos to Drive! (Lots ${startLot}–${startLot + selected.length - 1})`;
+    btn.disabled = false;
+    notify(`✅ ${uploaded} photos uploaded to Drive!`);
+  } catch(e) {
+    status.textContent = '❌ Upload failed: ' + e.message;
+    btn.disabled = false;
+  }
 }
 
 async function clearFirebasePhotos() {
@@ -3558,7 +3644,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.2.6
+  AUCTION MANAGER PRO · V2.2.7
 </div>
 </body>
 </html>
