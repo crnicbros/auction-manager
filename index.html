@@ -2525,8 +2525,9 @@ function renderTotes(){
               </tr>
               <tr id="tote-edit-row-${l.id}" style="display:none">
                 <td colspan="4" style="padding:6px 8px">
-                  <div style="display:flex;gap:6px;align-items:center">
-                    <input type="text" id="tote-edit-input-${l.id}" value="${(l.title||'').replace(/"/g,'&quot;')}" style="flex:1;padding:6px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:13px"/>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <input type="number" id="tote-lot-input-${l.id}" value="${l.lotNum||''}" placeholder="Lot #" style="width:70px;padding:6px 8px;border-radius:6px;background:var(--bg3);border:1px solid var(--border2);color:var(--gold);font-size:13px;font-weight:600"/>
+                    <input type="text" id="tote-edit-input-${l.id}" value="${(l.title||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:150px;padding:6px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:13px"/>
                     <button class="btn btn-green btn-sm" onclick="saveLotInlineEdit('${l.id}','tote')">✓</button>
                     <button class="btn btn-ghost btn-sm" onclick="cancelLotInlineEdit('${l.id}','tote')">✕</button>
                   </div>
@@ -2563,15 +2564,21 @@ function cancelLotInlineEdit(lotId, tab) {
 }
 
 async function saveLotInlineEdit(lotId, tab) {
-  const input = document.getElementById(`${tab}-edit-input-${lotId}`);
-  if(!input) return;
-  const newTitle = input.value.trim();
+  const titleInput = document.getElementById(`${tab}-edit-input-${lotId}`);
+  const lotNumInput = document.getElementById(`${tab}-lot-input-${lotId}`);
+  if(!titleInput) return;
+  const newTitle = titleInput.value.trim();
   if(!newTitle) return;
-  const newDescription = newTitle; // auto-fill description from title
+  const newDescription = newTitle;
+  const newLotNum = lotNumInput ? (parseInt(lotNumInput.value) || null) : null;
 
   // Update local state
   const lot = state.lots.find(l => l.id === lotId);
-  if(lot) { lot.title = newTitle; lot.description = newDescription; }
+  if(lot) {
+    lot.title = newTitle;
+    lot.description = newDescription;
+    if(newLotNum) lot.lotNum = newLotNum;
+  }
 
   // Update title display
   const titleEl = document.getElementById(`${tab}-title-${lotId}`);
@@ -2580,14 +2587,17 @@ async function saveLotInlineEdit(lotId, tab) {
   // Save to Firebase
   if(window.fbSaveLot && lot) {
     try {
-      await window.fbSaveLot({...lot, title: newTitle, description: newDescription});
-      notify('✅ Title updated!');
+      await window.fbSaveLot({...lot, title: newTitle, description: newDescription, lotNum: newLotNum || lot.lotNum});
+      notify('✅ Lot updated!');
     } catch(e) {
       notify('Firebase save error: ' + e.message, true);
     }
   }
 
   cancelLotInlineEdit(lotId, tab);
+  // Refresh the tab to show updated lot number
+  if(tab === 'tote') renderTotes();
+  else if(tab === 'fb') renderFirebaseTab();
 }
 
 function toggleToteAuction(auction) {
@@ -3877,7 +3887,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.3.6
+  AUCTION MANAGER PRO · V2.3.7
 </div>
 </body>
 </html>
