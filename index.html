@@ -2479,9 +2479,10 @@ function renderTotes(){
                 <strong style="font-size:13px">${t.toteLabel}</strong>
                 <span style="font-size:11px;color:var(--muted2)">${lots.length} lots</span>
               </div>
-              <div style="display:flex;align-items:center;gap:8px">
-                <button class="btn btn-red btn-sm" onclick="event.stopPropagation();deleteTote('${t.toteKey}')">🗑️ Delete</button>
-                <span id="tote-ind-chevron-${safeKey}" style="color:var(--muted2)">▼</span>
+              <div style="display:flex;align-items:center;gap:6px" onclick="event.stopPropagation()">
+                <button class="btn btn-ghost btn-sm" onclick="massDeleteToteLots('${t.toteKey}')">🗑️ Delete Selected</button>
+                <button class="btn btn-red btn-sm" onclick="deleteTote('${t.toteKey}')">🗑️ Tote</button>
+                <span id="tote-ind-chevron-${safeKey}" style="color:var(--muted2);pointer-events:none">▼</span>
               </div>
             </div>
             <div id="tote-ind-${safeKey}" style="display:none;overflow-x:auto">
@@ -3903,7 +3904,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.3.9
+  AUCTION MANAGER PRO · V2.4.0
 </div>
 </body>
 </html>
