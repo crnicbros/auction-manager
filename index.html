@@ -2485,8 +2485,9 @@ function renderTotes(){
               </div>
             </div>
             <div id="tote-ind-${safeKey}" style="display:none;overflow-x:auto">
-              <table class="tote-table"><thead><tr><th>Lot #</th><th>Title</th><th>Date</th><th></th></tr></thead><tbody>
+              <table class="tote-table"><thead><tr><th></th><th>Lot #</th><th>Title</th><th>Date</th><th></th></tr></thead><tbody>
               ${lots.map(l=>`<tr>
+                <td><input type="checkbox" class="tote-lot-cb" data-id="${l.id}" data-totekey="${t.toteKey}" style="width:16px;height:16px"/></td>
                 <td><strong>${l.lotNum}</strong></td>
                 <td style="font-size:12px" id="tote-title-${l.id}">${l.title||'—'}</td>
                 <td style="font-size:11px;color:var(--muted)">${l.date||''}</td>
@@ -2511,6 +2512,47 @@ function renderTotes(){
         }).join('')}
       </div>
     </div>`).join('');
+}
+
+async function massDeleteToteLots(toteKey) {
+  const checkboxes = document.querySelectorAll(`.tote-lot-cb[data-totekey="${toteKey}"]:checked`);
+  if(!checkboxes.length) { notify('No lots selected', true); return; }
+  if(!confirm(`Delete ${checkboxes.length} selected lots?`)) return;
+  const ids = [...checkboxes].map(cb => cb.dataset.id);
+  for(const id of ids) {
+    state.lots = state.lots.filter(l => l.id !== id);
+    if(window.fbDeleteLot) window.fbDeleteLot(id).catch(e => console.log('FB delete error:', e));
+  }
+  const tote = state.totes.find(t => t.toteKey === toteKey);
+  if(tote) tote.lotNums = state.lots.filter(l => l.toteKey === toteKey).map(l => l.lotNum);
+  saveState();
+  renderTotes();
+  notify(`✅ Deleted ${ids.length} lots`);
+}
+
+function selectAllFbLots(auction) {
+  document.querySelectorAll(`.fb-lot-cb[data-id]`).forEach(cb => {
+    const id = cb.dataset.id;
+    const lot = fbAllLots.find(l => l.id === id);
+    if(lot && lot.auctionName === auction) cb.checked = !cb.checked;
+  });
+}
+
+async function massDeleteFbLots(auction) {
+  const checkboxes = document.querySelectorAll('.fb-lot-cb:checked');
+  if(!checkboxes.length) { notify('No lots selected', true); return; }
+  const ids = [...checkboxes].map(cb => cb.dataset.id);
+  const auctionIds = ids.filter(id => fbAllLots.find(l => l.id === id && l.auctionName === auction));
+  if(!auctionIds.length) { notify('No lots selected for this auction', true); return; }
+  if(!confirm(`Delete ${auctionIds.length} selected lots from "${auction}"?`)) return;
+  for(const id of auctionIds) {
+    state.lots = state.lots.filter(l => l.id !== id);
+    if(window.fbDeleteLot) await window.fbDeleteLot(id).catch(e => console.log('FB delete error:', e));
+  }
+  saveState();
+  notify(`✅ Deleted ${auctionIds.length} lots`);
+  renderFirebaseTab();
+  renderTotes();
 }
 
 function toggleIndividualTote(safeKey) {
@@ -3650,15 +3692,17 @@ async function renderFirebaseTab() {
       block.innerHTML = `
         <div onclick="toggleFbAuction('${auction}')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);cursor:pointer">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:var(--gold)">${auction}</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:12px;color:var(--muted2)">${auctionLots.length} lots</span>
-            <span id="fb-chevron-${auction}" style="color:var(--muted2)">▼</span>
+          <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+            <button class="btn btn-ghost btn-sm" onclick="selectAllFbLots('${auction}')">☑️ All</button>
+            <button class="btn btn-red btn-sm" onclick="massDeleteFbLots('${auction}')">🗑️ Delete Selected</button>
+            <span id="fb-chevron-${auction}" style="color:var(--muted2);pointer-events:none">▼</span>
           </div>
         </div>
         <div id="fb-auction-${auction}" style="display:none;overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
               <tr style="border-bottom:1px solid var(--border)">
+                <th style="padding:6px 8px"></th>
                 <th style="text-align:left;padding:6px 8px;color:var(--muted2)">LOT#</th>
                 <th style="text-align:left;padding:6px 8px;color:var(--muted2)">TOTE</th>
                 <th style="text-align:left;padding:6px 8px;color:var(--muted2)">TITLE</th>
@@ -3859,7 +3903,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.3.8
+  AUCTION MANAGER PRO · V2.3.9
 </div>
 </body>
 </html>
