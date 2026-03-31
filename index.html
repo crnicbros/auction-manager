@@ -511,11 +511,6 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
   </div>
 
-  <div id="session-timer" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:12px;display:none;align-items:center;justify-content:space-between;gap:12px">
-    <div style="font-size:12px;color:var(--muted2)">⏱ Session Time Remaining</div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px" id="session-countdown">--:--</div>
-  </div>
-
   <div class="card">
     <div class="card-title">📸 Photos</div>
 
@@ -1021,7 +1016,6 @@ window.addEventListener('DOMContentLoaded', function handleOAuthRedirect() {
     localStorage.setItem('g_user', JSON.stringify(userInfo));
     showApp(true);
     scheduleTokenRefresh();
-    startSessionTimer();
     notify('✅ Signed in as ' + (info.email || fullName));
   }).catch(e => notify('Sign in error: ' + e.message, true));
 });
@@ -1093,7 +1087,6 @@ window.onload = () => {
     accessToken = savedToken;
     userInfo = JSON.parse(savedUser);
     scheduleTokenRefresh();
-    startSessionTimer();
     const displayName = userInfo.name || userInfo.email || 'Signed In';
     (document.getElementById('user-name')||{textContent:''}).textContent = displayName;
     (document.getElementById('user-avatar')||{textContent:''}).textContent = displayName[0].toUpperCase();
@@ -1201,31 +1194,9 @@ function showTokenWarning() {
   if(banner) banner.style.display = 'block';
 }
 
-let countdownInterval = null;
-function startSessionTimer() {
-  const timerEl = document.getElementById('session-timer');
-  const countdownEl = document.getElementById('session-countdown');
-  if(!timerEl || !countdownEl) return;
-  timerEl.style.display = 'flex';
-  if(countdownInterval) clearInterval(countdownInterval);
-  countdownInterval = setInterval(() => {
-    const expiry = parseInt(localStorage.getItem('g_token_expiry') || '0');
-    const remaining = expiry - Date.now();
-    if(remaining <= 0) {
-      countdownEl.textContent = '00:00';
-      countdownEl.style.color = 'var(--red)';
-      clearInterval(countdownInterval);
-      return;
-    }
     const mins = Math.floor(remaining / 60000);
     const secs = Math.floor((remaining % 60000) / 1000);
     countdownEl.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
-    // Color coding
-    if(remaining < 5 * 60 * 1000) countdownEl.style.color = 'var(--red)';
-    else if(remaining < 10 * 60 * 1000) countdownEl.style.color = '#f0a040';
-    else countdownEl.style.color = 'var(--gold)';
-  }, 1000);
-}
 
 function reAuthNow() {
   // Save a flag so user knows to expect redirect
@@ -2446,7 +2417,7 @@ document.getElementById('dl-csv-btn').addEventListener('click',()=>{
 // ============================================================
 // TOTE TRACKER
 // ============================================================
-function deleteSingleLot(lotId, toteKey) {
+async function deleteSingleLot(lotId, toteKey) {
   if(!confirm('Delete this lot? This cannot be undone.')) return;
   state.lots = state.lots.filter(l=>l.id!==lotId);
   // Update tote lotNums
@@ -2455,6 +2426,7 @@ function deleteSingleLot(lotId, toteKey) {
   saveState();
   renderTotes();
   notify('Lot deleted.');
+  if(window.fbDeleteLot) window.fbDeleteLot(lotId).catch(e => console.log('FB delete error:', e));
 }
 
 async function deleteTote(toteKey){
@@ -3887,7 +3859,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.3.7
+  AUCTION MANAGER PRO · V2.3.8
 </div>
 </body>
 </html>
