@@ -1197,10 +1197,6 @@ function showTokenWarning() {
   if(banner) banner.style.display = 'block';
 }
 
-    const mins = Math.floor(remaining / 60000);
-    const secs = Math.floor((remaining % 60000) / 1000);
-    countdownEl.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
-
 function reAuthNow() {
   // Save a flag so user knows to expect redirect
   localStorage.setItem('reauth_pending', '1');
@@ -3904,7 +3900,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.4.1
+  AUCTION MANAGER PRO · V2.4.2
 </div>
 </body>
 </html>
