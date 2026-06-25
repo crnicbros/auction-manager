@@ -1491,7 +1491,7 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');ha
 fi.addEventListener('change',()=>handleFiles([...fi.files]));
 
 function handleFiles(files, skipFirebase=false){
-  allFiles=files.filter(f=>f.type.startsWith('image/')).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+  allFiles=files.filter(f=>!f.type||f.type.startsWith('image/')||f.name.match(/.(jpg|jpeg|png|gif|webp|heic)$/i)).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
   const n=allFiles.length;
   const _ppl=(ITEM_CONFIG[document.getElementById('item-type')?.value]||ITEM_CONFIG.jersey).photos;
   document.getElementById('file-info').textContent=n?`${n} photos → ~${Math.floor(n/_ppl)} lots`:'';
@@ -1740,7 +1740,7 @@ document.getElementById('process-btn').addEventListener('click',async()=>{
   const auctionName=document.getElementById('auction-name').value.trim();
   const toteLabel=document.getElementById('tote-label').value.trim();
   if(!auctionName||!toteLabel){notify('Fill in Auction Name and Tote Label.',true);return;}
-  if(!allFiles.length)return;
+  if(!allFiles.length){alert('No photos found. Go back to camera mode, capture photos, tap Done, then tap Analyze.');return;}
 
   document.getElementById('process-btn').disabled=true;
   document.getElementById('stop-btn').style.display='block';
@@ -3913,7 +3913,7 @@ function saveApiKey() {
 
 </script>
 <div style="text-align:center;padding:16px;font-size:11px;color:var(--muted);font-family:&#39;Bebas Neue&#39;,sans-serif;letter-spacing:2px">
-  AUCTION MANAGER PRO · V2.4.3
+  AUCTION MANAGER PRO · V2.4.4
 </div>
 
 
